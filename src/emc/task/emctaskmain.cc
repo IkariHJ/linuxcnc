@@ -61,6 +61,7 @@
 #include "usrmotintf.h"
 #include <rtapi_string.h>	// rtapi_strlcpy()
 #include "tooldata.hh"
+#include <time.h>
 
 #if 0
 // Enable this to niftily trap floating point exceptions for debugging
@@ -4311,6 +4312,47 @@ int main(int argc, char *argv[])
 		// handle RCS_STAT_MSG base class members explicitly, since this
 		// is not an NML_MODULE and they won't be set automatically
 
+
+		// 这段为测试代码，后续需要删除
+		// 这段为了模拟PLC的M代码状态，定时清理过期的M代码状态
+		if(emcStatus->task.execState == EMC_TASK_EXEC_WAITING_FOR_M_CODES)
+		{
+			static time_t last_plc_simulate = 0;
+			time_t now = time(NULL);
+
+			if (last_plc_simulate == 0)  // 第一次进入
+			{
+				last_plc_simulate = now;  // 记录起始时间，5秒后才第一次清0
+			}
+			else if (now - last_plc_simulate >= 5)			
+			{
+				last_plc_simulate = now;
+				
+				int reset_count = 0;
+				for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++)
+				{
+					if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST)
+					{
+						continue;
+					}
+					else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber >= EMC_MAX_MCODE_LIST)
+					{
+						continue;
+					}
+					else
+					{
+						emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber].state = 0;
+						emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber].value = 0;
+						reset_count++;  
+					}
+				}
+
+				if (reset_count > 0)
+				{
+					rcs_print("PLC simulate: %d M-code(s) cleared\n", reset_count);
+				}
+			}
+		}
 
 		// do task
 		// 写入task子结构体
