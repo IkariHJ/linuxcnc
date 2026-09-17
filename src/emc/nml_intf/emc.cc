@@ -761,6 +761,8 @@ const char *emc_symbol_lookup(uint32_t type)
 	return "EMC_TRAJ_STAT";
     case EMC_TRAJ_STEP_TYPE:
 	return "EMC_TRAJ_STEP";
+    case EMC_MCODE_TYPE:
+	return "EMC_MCODE";
     default:
 	return "UNKNOWN";
 	break;
@@ -2926,7 +2928,7 @@ void EMC_TRAJ_RIGID_TAP::update(CMS * cms)
 void EMC_M_CODE_MEG::update(CMS * cms)
 {
 
-    EMC_CMD_MSG::update(cms);
+    EMC_TRAJ_CMD_MSG::update(cms);
     MCodeCtx_update(cms, &mcodeCtx);
 
 }

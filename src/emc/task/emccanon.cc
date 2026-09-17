@@ -2341,7 +2341,7 @@ void DISABLE_FEED_HOLD()
     interp_list.append(set_feed_hold_msg);
 }
 
-void CUSTOM_USER_M_CODES(int index , bool p_flag , double p_number , bool q_flag , double q_number)
+void CUSTOM_USER_M_CODES(int index , bool p_flag , double p_number , bool q_flag , double q_number , int line_num)
 {    
     // ★ 构造 EMC_M_CODE_MEG 命令，加入 interp_list 走task调度
     EMC_M_CODE_MEG mcode_cmd;
@@ -2351,8 +2351,10 @@ void CUSTOM_USER_M_CODES(int index , bool p_flag , double p_number , bool q_flag
     mcode_cmd.mcodeCtx.activeMCodeList[0].value = 0;
     mcode_cmd.mcodeCtx.pValue = p_flag ? p_number : 0.0;
     mcode_cmd.mcodeCtx.qValue = q_flag ? q_number : 0.0;
-    
-    interp_list.append(&mcode_cmd);
+
+    interp_list.set_line_number(line_num);   // ★ 设行号
+    //interp_list.append(&mcode_cmd);
+    tag_and_send(mcode_cmd , _tag);
 }
 
 void FLOOD_OFF()

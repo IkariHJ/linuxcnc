@@ -2254,9 +2254,9 @@ class EMC_STAT:public EMC_STAT_MSG {
 
 
 // EMC_M_CODE command base class
-class EMC_M_CODE_MEG:public EMC_CMD_MSG {
+class EMC_M_CODE_MEG:public EMC_TRAJ_CMD_MSG {
   public:
-    EMC_M_CODE_MEG():EMC_CMD_MSG(EMC_MCODE_TYPE,
+    EMC_M_CODE_MEG():EMC_TRAJ_CMD_MSG(EMC_MCODE_TYPE,
 					    sizeof(EMC_M_CODE_MEG)) {
     };
 

@@ -3700,8 +3700,8 @@ int Interp::convert_m(block_pointer block,       //!< pointer to a block of RS27
         // }
         // enqueue_M_USER_COMMAND(index,block->p_number,block->q_number);
 
-
-        CUSTOM_USER_M_CODES(block->m_modes[10] , block->p_flag , block->p_number , block->q_flag , block->q_number );
+        write_canon_state_tag(block , settings);    
+        CUSTOM_USER_M_CODES(block->m_modes[10] , block->p_flag , block->p_number , block->q_flag , block->q_number , _setup.sequence_number);
 
     }
     return INTERP_OK;

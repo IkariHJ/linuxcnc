@@ -1672,12 +1672,6 @@ static int emcTaskCheckPreconditions(NMLmsg * cmd)
     case EMC_MCODE_TYPE:
 	// 在此处对译码识别的M代码进行置位
 
-	// ★ 加日志
-    rcs_print("MCODE precond: count=%d m0=%d p=%f q=%f\n",
-        emcStatus->task.mcodeCtx.activeMcodeListCount,
-        emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber,
-        emcStatus->task.mcodeCtx.pValue,
-        emcStatus->task.mcodeCtx.qValue);
 
 	// 1、对emcStatus->MCodes.ActiveMCode数组置位，表示当前正在执行的M代码
     // 步骤1： emcStatus->MCodes.ActiveMCode = ((EMC_M_CODE_MEG *) cmd)->activemcode;
@@ -1687,6 +1681,15 @@ static int emcTaskCheckPreconditions(NMLmsg * cmd)
 	{
 		return EMC_TASK_EXEC_DONE;
 	}
+
+
+	// ★ 加日志
+    rcs_print("MCODE precond: count=%d m0=%d p=%f q=%f\n",
+        emcStatus->task.mcodeCtx.activeMcodeListCount,
+        emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber,
+        emcStatus->task.mcodeCtx.pValue,
+        emcStatus->task.mcodeCtx.qValue);
+
 
 	// 2、对emcStatus->MCodes.MCodeList数组进行置位，表示当前正在执行的M代码的状态，供PLC使用（此数组PLC需要对其进行复位！！！）
     // 步骤1： 通过emcStatus->MCodes.ActiveMCode中被触发ID,做index对emcStatus->MCodes.MCodeList进行置位，表示当前正在执行的M代码的状态
@@ -4317,16 +4320,13 @@ int main(int argc, char *argv[])
 		// 这段为了模拟PLC的M代码状态，定时清理过期的M代码状态
 		if(emcStatus->task.execState == EMC_TASK_EXEC_WAITING_FOR_M_CODES)
 		{
-			static time_t last_plc_simulate = 0;
+			static time_t last_plc_simulate = time(NULL);  // ★ 初始化为当前时间，不是0
 			time_t now = time(NULL);
-
-			if (last_plc_simulate == 0)  // 第一次进入
+			
+			if (now - last_plc_simulate >= 5)
 			{
-				last_plc_simulate = now;  // 记录起始时间，5秒后才第一次清0
-			}
-			else if (now - last_plc_simulate >= 5)			
-			{
-				last_plc_simulate = now;
+				rcs_print("PLC simulate tick: now=%ld last=%ld diff=%ld\n", (long)now, (long)last_plc_simulate, (long)(now - last_plc_simulate));
+			  	last_plc_simulate = now;
 				
 				int reset_count = 0;
 				for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++)
@@ -4343,12 +4343,15 @@ int main(int argc, char *argv[])
 					{
 						emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber].state = 0;
 						emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber].value = 0;
+						rcs_print("PLC simulate:  M%d cleared\n", emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber);
 						reset_count++;  
 					}
 				}
 
 				if (reset_count > 0)
 				{
+					last_plc_simulate = time(NULL);  // ★ 初始化为当前时间，不是0
+					now = time(NULL);
 					rcs_print("PLC simulate: %d M-code(s) cleared\n", reset_count);
 				}
 			}

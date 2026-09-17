@@ -643,7 +643,7 @@ extern void ENABLE_SPEED_OVERRIDE(int spindle);
 extern void DISABLE_FEED_HOLD();
 extern void ENABLE_FEED_HOLD();
 
-extern void CUSTOM_USER_M_CODES(int index , bool p_flag , double p_number , bool q_flag , double q_number);
+extern void CUSTOM_USER_M_CODES(int index , bool p_flag , double p_number , bool q_flag , double q_number, int line_num);
 
 
 extern void FLOOD_OFF();

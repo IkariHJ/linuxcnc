@@ -608,8 +608,8 @@ void ENABLE_ADAPTIVE_FEED()
 void ENABLE_FEED_HOLD()
 {PRINT("ENABLE_FEED_HOLD()\n");}
 
-void CUSTOM_USER_M_CODES(int index , bool p_flag , double p_number , bool q_flag , double q_number)
-{PRINT("CUSTOM_USER_M_CODES(%d, %s, %.4f, %s, %.4f)\n", index, p_flag ? "true" : "false", p_number, q_flag ? "true" : "false", q_number);}
+void CUSTOM_USER_M_CODES(int index , bool p_flag , double p_number , bool q_flag , double q_number, int line_num)
+{PRINT("CUSTOM_USER_M_CODES(%d, %s, %.4f, %s, %.4f, %d)\n", index, p_flag ? "true" : "false", p_number, q_flag ? "true" : "false", q_number, line_num);}
 
 void ENABLE_FEED_OVERRIDE()
 {PRINT("ENABLE_FEED_OVERRIDE()\n"); fo_enable = true; }
