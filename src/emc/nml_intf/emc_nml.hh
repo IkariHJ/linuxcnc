@@ -1527,6 +1527,7 @@ class EMC_TASK_STAT:public EMC_TASK_STAT_MSG {
     int callLevel;              // current subroutine level - 0 if not in a subroutine, > 0 otherwise
     int motionLine;		// line motion is executing-- may lag
     int currentLine;		// line currently executing
+    int executingLine;  // 机器当前实际执行行号
     int readLine;		// line interpreter has read to
     bool optional_stop_state;	// state of optional stop (== ON means we stop on M1)
     bool block_delete_state;	// state of block delete (== ON means we ignore lines starting with "/")

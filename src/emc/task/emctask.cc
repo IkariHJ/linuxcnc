@@ -735,6 +735,8 @@ int emcTaskUpdate(EMC_TASK_STAT * stat)
     //update state of block delete
     stat->block_delete_state = GET_BLOCK_DELETE();
     
+    stat->executingLine = (emcStatus->motion.traj.queue > 0) ?  emcStatus->task.motionLine :  emcStatus->task.currentLine;
+    
     stat->heartbeat++;
 
     return 0;

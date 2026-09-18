@@ -1970,6 +1970,7 @@ void EMC_TASK_STAT::update(CMS * cms)
     cms->update(callLevel);
     cms->update(motionLine);
     cms->update(currentLine);
+    cms->update(executingLine);
     cms->update(readLine);
     cms->update(file, 256);
     cms->update(command, 256);
