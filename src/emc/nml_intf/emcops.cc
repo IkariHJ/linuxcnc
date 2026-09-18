@@ -162,6 +162,7 @@ EMC_TASK_STAT_MSG(EMC_TASK_STAT_TYPE, sizeof(EMC_TASK_STAT))
     mcodeCtx.activeMcodeListCount = 0;
     mcodeCtx.pValue = 0;
     mcodeCtx.qValue = 0;
+    mcodeCtx.plcNotified = 0;
     for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++) 
     {
         mcodeCtx.activeMCodeList[i].mNumber = -1;

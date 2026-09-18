@@ -48,6 +48,7 @@ typedef struct {
     int activeMcodeListCount; /* 当前活跃M代码数量 */
     double pValue;
     double qValue;
+    int plcNotified;
 } EMC_TASK_MCODE_CTX;
 
 

@@ -1997,6 +1997,7 @@ void EMC_TASK_STAT::update(CMS * cms)
     cms->update(mcodeCtx.activeMcodeListCount);
     cms->update(mcodeCtx.pValue);
     cms->update(mcodeCtx.qValue);
+    cms->update(mcodeCtx.plcNotified);
 
     for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++) 
     {
@@ -2612,6 +2613,7 @@ void MCodeCtx_update(CMS * cms, EMC_TASK_MCODE_CTX * mcodeCtx)
     cms->update(mcodeCtx->activeMcodeListCount);
     cms->update(mcodeCtx->pValue);
     cms->update(mcodeCtx->qValue);
+    cms->update(mcodeCtx->plcNotified);
 }
 
 /*

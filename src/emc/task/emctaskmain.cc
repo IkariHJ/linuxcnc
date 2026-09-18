@@ -1683,38 +1683,7 @@ static int emcTaskCheckPreconditions(NMLmsg * cmd)
 	}
 
 
-	// ★ 加日志
-    rcs_print("MCODE precond: count=%d m0=%d p=%f q=%f\n",
-        emcStatus->task.mcodeCtx.activeMcodeListCount,
-        emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber,
-        emcStatus->task.mcodeCtx.pValue,
-        emcStatus->task.mcodeCtx.qValue);
-
-
-	// 2、对emcStatus->MCodes.MCodeList数组进行置位，表示当前正在执行的M代码的状态，供PLC使用（此数组PLC需要对其进行复位！！！）
-    // 步骤1： 通过emcStatus->MCodes.ActiveMCode中被触发ID,做index对emcStatus->MCodes.MCodeList进行置位，表示当前正在执行的M代码的状态
-	for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++)
-	{
-		if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST)
-		{
-			continue;
-		}
-		else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber >= EMC_MAX_MCODE_LIST)
-		{
-			continue;
-		}
-		else
-		{
-			emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber].state = 1;
-			emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber].value = emcStatus->task.mcodeCtx.activeMCodeList[i].value;
-		}
-	}
-	
-	rcs_print("MCODE precond: line=%d count=%d\n", emcStatus->task.currentLine, emcStatus->task.mcodeCtx.activeMcodeListCount);
-
-	// emcStatus->MCodes.ActiveMCode数组存的是Index,例如：当前在跑三个M代码，数组长度为3，数组内容为[1,2,3]，表示当前正在执行M1、M2、M3
-	// emcStatus->MCodes.ActiveMCode数组最大长度为10,意味译码出来的M代码最多支持10个同时执行
-	return EMC_TASK_EXEC_WAITING_FOR_M_CODES;
+	return EMC_TASK_EXEC_WAITING_FOR_M_CODES_AND_MOTION;
 	break;
 
 
@@ -2704,6 +2673,7 @@ static void mcode_ctx_reset(EMC_TASK_MCODE_CTX *ctx)
     ctx->activeMcodeListCount = 0;
     ctx->pValue = 0;
     ctx->qValue = 0;
+    ctx->plcNotified = 0;
 	// writeSeq 不重置
     for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++)
     {
@@ -2823,98 +2793,136 @@ static int emcTaskExecute(void)
 		}
 		break;
 
-	case EMC_TASK_EXEC_WAITING_FOR_M_CODES:
+	case EMC_TASK_EXEC_WAITING_FOR_M_CODES_AND_MOTION:
+	{
 		STEPPING_CHECK();
 
+		// --- 判断 motion 是否完成 ---
+		// 参考原生 WAITING_FOR_MOTION 分支的判断方式
+		bool motionDone = (emcStatus->motion.traj.queue == 0);  
+		
+		// --- motion 第一次完成时，才置位 PLC（只置位一次）---
+		if (motionDone && emcStatus->task.mcodeCtx.plcNotified == 0)
 		{
-			// ★ 加日志
+			emcStatus->task.mcodeCtx.plcNotified = 1;
 			static int wait_loop = 0;
-			if (wait_loop++ % 100 == 0) {
-				rcs_print("MCODE wait: loop=%d count=%d m0=%d state[%d]=%d\n",
-					wait_loop,
-					emcStatus->task.mcodeCtx.activeMcodeListCount,
-					emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber,
-					emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber,
-					emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber].state);
+			if (wait_loop++ % 100 == 0) 
+			{
+				rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcStatus->task.mcodeCtx.plcNotified);
+				rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcStatus->task.mcodeCtx.plcNotified);
 			}
-    	}
-		// emcStatus->MCodes.ActiveMCode[];   
-		// 计划：只判断emcStatus->MCodes.ActiveMCode此数组中被触发的M代码是否执行完毕
-		// 其他的不判断（初步计划于emcTaskCheckPreconditions中对emcStatus->MCodes.ActiveMCode数组置False）
-
-		// 这行为异常情况，进入此分支后，说明本行M代码下发时没有任何M代码被触发，表示给的数据有问题，直接报错
-		if(emcStatus->task.mcodeCtx.activeMcodeListCount <= 0)
-		{
-			emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
-		}
-		// 判断本行所有M代码是否已执行完毕
-        // doneCount 由PLC完成反馈时递增，activeMcodeListCount 是下发时记录的总数
-        else 
-        {
-			// 是否全部完成的标识位
-			bool allDone = true;
 
 			for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++)
 			{
+				int mnum = emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber;
+				if (mnum <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST) continue;
+				if (mnum >= EMC_MAX_MCODE_LIST) continue;
+				
+				emcStatus->task.mcodeListWithPLC[mnum].state = 1;
+				emcStatus->task.mcodeListWithPLC[mnum].value = emcStatus->task.mcodeCtx.activeMCodeList[i].value;
+			}
+			rcs_print("MCODE PLC notified: line=%d\n", emcStatus->task.currentLine);
+		}
+		else if(motionDone && emcStatus->task.mcodeCtx.plcNotified == 1 )
+		{
+			{
+				// ★ 加日志
+				static int wait_loop = 0;
+				if (wait_loop++ % 100 == 0) {
+					rcs_print("MCODE wait: loop=%d count=%d m0=%d state[%d]=%d\n",
+						wait_loop,
+						emcStatus->task.mcodeCtx.activeMcodeListCount,
+						emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber,
+						emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber,
+						emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber].state);
+					rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcStatus->task.mcodeCtx.plcNotified);
+				}
+			}
+			// emcStatus->MCodes.ActiveMCode[];   
+			// 计划：只判断emcStatus->MCodes.ActiveMCode此数组中被触发的M代码是否执行完毕
+			// 其他的不判断（初步计划于emcTaskCheckPreconditions中对emcStatus->MCodes.ActiveMCode数组置False）
 
-				if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber < 0)
+			// 这行为异常情况，进入此分支后，说明本行M代码下发时没有任何M代码被触发，表示给的数据有问题，直接报错
+			if(emcStatus->task.mcodeCtx.activeMcodeListCount <= 0)
+			{
+				emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
+			}
+			// 判断本行所有M代码是否已执行完毕
+			// doneCount 由PLC完成反馈时递增，activeMcodeListCount 是下发时记录的总数
+			else 
+			{
+				// 是否全部完成的标识位
+				bool allDone = true;
+
+				for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++)
 				{
-					continue;
-				}
-				// 0~100
-				// 如果M代码号小于等于100，表示是系统保留的M代码，不需要等待PLC反馈，直接跳过
-				else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST)
-				{
-					continue;
-				}
-				// 100~500
-				// 非阻塞型M代码，不需要等待执行完毕，直接跳过
-				else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_UNBLOCK_BOUNDARY_MCODE_LIST)
-				{
-					continue;
-				}
-				// > 1000 的M代码号，表示是非法的M代码号，直接报错
-				else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber >= EMC_MAX_MCODE_LIST)
-				{
-					emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
-					allDone = false;
-					break;
-				}
-				// 500~1000
-				else 
-				{
-					EMC_MCODE_ENTRY tmp = emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber];
-					if(tmp.state > 0)
+
+					if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber < 0)
 					{
+						continue;
+					}
+					// 0~100
+					// 如果M代码号小于等于100，表示是系统保留的M代码，不需要等待PLC反馈，直接跳过
+					else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST)
+					{
+						continue;
+					}
+					// 100~500
+					// 非阻塞型M代码，不需要等待执行完毕，直接跳过
+					else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_UNBLOCK_BOUNDARY_MCODE_LIST)
+					{
+						continue;
+					}
+					// > 1000 的M代码号，表示是非法的M代码号，直接报错
+					else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber >= EMC_MAX_MCODE_LIST)
+					{
+						emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
 						allDone = false;
 						break;
 					}
+					// 500~1000
+					else 
+					{
+						EMC_MCODE_ENTRY tmp = emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber];
+						if(tmp.state > 0)
+						{
+							allDone = false;
+							break;
+						}
+					}
 				}
-			}
 
-			// 如果全部完成，标记本行M代码完成，并清理本行M代码上下文，为下一行做准备
-			if(allDone)
-			{
-				
-				if (emc_debug & EMC_DEBUG_TASK_ISSUE)
+				// 如果全部完成，标记本行M代码完成，并清理本行M代码上下文，为下一行做准备
+				if(allDone)
 				{
-					rcs_print("M_CODES done: line=%d count=%d\n",
-						emcStatus->task.currentLine,
-						emcStatus->task.mcodeCtx.activeMcodeListCount);
+					
+					if (emc_debug & EMC_DEBUG_TASK_ISSUE)
+					{
+						rcs_print("M_CODES done: line=%d count=%d\n",
+							emcStatus->task.currentLine,
+							emcStatus->task.mcodeCtx.activeMcodeListCount);
+					}
+					
+					// 清理本行M代码上下文，为下一行做准备
+					mcode_ctx_reset(&emcStatus->task.mcodeCtx);
+					
+					emcStatus->task.execState = EMC_TASK_EXEC_DONE;
+					rcs_print("MCODE done: line=%d\n", emcStatus->task.currentLine);
+					emcTaskEager = 1;
 				}
-				
-				// 清理本行M代码上下文，为下一行做准备
-				mcode_ctx_reset(&emcStatus->task.mcodeCtx);
-				
-				emcStatus->task.execState = EMC_TASK_EXEC_DONE;
-				rcs_print("MCODE done: line=%d\n", emcStatus->task.currentLine);
-				emcTaskEager = 1;
+
 			}
-
-        }
-
+		
+		}
+		else
+		{
+			static int wait_loop = 0;
+			if (wait_loop++ % 100 == 0) {
+				rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcStatus->task.mcodeCtx.plcNotified);
+			}
+		}
 		break;
-
+	}
     case EMC_TASK_EXEC_WAITING_FOR_MOTION_QUEUE:
 		STEPPING_CHECK();
 		if (!emcStatus->motion.traj.queueFull) 
@@ -4318,41 +4326,49 @@ int main(int argc, char *argv[])
 
 		// 这段为测试代码，后续需要删除
 		// 这段为了模拟PLC的M代码状态，定时清理过期的M代码状态
-		if(emcStatus->task.execState == EMC_TASK_EXEC_WAITING_FOR_M_CODES)
+		if(emcStatus->task.execState == EMC_TASK_EXEC_WAITING_FOR_M_CODES_AND_MOTION && emcStatus->task.mcodeCtx.plcNotified == 1)		
 		{
-			static time_t last_plc_simulate = time(NULL);  // ★ 初始化为当前时间，不是0
-			time_t now = time(NULL);
+			static time_t last_plc_simulate = 0;
+			static int last_mcode_line = -1;  // ★ 记录上一次处理的M代码行号
 			
+			time_t now = time(NULL);
+			int current_line = emcStatus->task.currentLine;
+			
+			// 行号变了 → 新的M代码 → 重置计时从0开始
+			if (last_mcode_line != current_line)
+			{
+				last_plc_simulate = now;
+				last_mcode_line = current_line;
+			}			
+
 			if (now - last_plc_simulate >= 5)
 			{
 				rcs_print("PLC simulate tick: now=%ld last=%ld diff=%ld\n", (long)now, (long)last_plc_simulate, (long)(now - last_plc_simulate));
-			  	last_plc_simulate = now;
-				
+				last_plc_simulate = now;
+
 				int reset_count = 0;
 				for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++)
 				{
-					if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST)
-					{
-						continue;
-					}
-					else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber >= EMC_MAX_MCODE_LIST)
-					{
-						continue;
-					}
-					else
-					{
-						emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber].state = 0;
-						emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber].value = 0;
-						rcs_print("PLC simulate:  M%d cleared\n", emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber);
-						reset_count++;  
-					}
-				}
+					int mnum = emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber;
+					if(mnum <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST) continue;
+					if(mnum >= EMC_MAX_MCODE_LIST) continue;
+					if(emcStatus->task.mcodeListWithPLC[mnum].state == 0) continue;  // 已经是0的不用管
 
+					emcStatus->task.mcodeListWithPLC[mnum].state = 0;
+					emcStatus->task.mcodeListWithPLC[mnum].value = 0;
+					rcs_print("PLC simulate:  M%d cleared\n", mnum);
+					reset_count++;
+				}
 				if (reset_count > 0)
 				{
-					last_plc_simulate = time(NULL);  // ★ 初始化为当前时间，不是0
-					now = time(NULL);
 					rcs_print("PLC simulate: %d M-code(s) cleared\n", reset_count);
+				}
+			}
+			else
+			{
+				static int wait_loop = 0;
+				if (wait_loop++ % 100 == 0) {
+					rcs_print("PLC simulate tick: now=%ld last=%ld diff=%ld\n", (long)now, (long)last_plc_simulate, (long)(now - last_plc_simulate));
 				}
 			}
 		}
