@@ -42,6 +42,8 @@
 /* flag for how we want to interpret traj coord mode, as mdi or auto */
 static int mdiOrAuto = EMC_TASK_MODE_AUTO;
 
+extern EMC_CUSTOM_STAT *emcCustomStatus;
+
 InterpBase *pinterp=0;
 #define interp (*pinterp)
 setup_pointer _is = 0; // helper for gdb hardware watchpoints FIXME
@@ -238,6 +240,25 @@ int emcTaskAbort()
     emcStatus->task.readLine = 0;
     emcStatus->task.command[0] = 0;
     emcStatus->task.callLevel = 0;
+
+
+    // 复位M代码状态
+    if (emcCustomStatus) 
+    {
+        // 复位 mcodeListWithPLC（全部清零）
+        memset(emcCustomStatus->mcodeListWithPLC, 0, sizeof(emcCustomStatus->mcodeListWithPLC));
+
+        // 复位 mcodeCtx
+        emcCustomStatus->mcodeCtx.activeMcodeListCount = 0;
+        emcCustomStatus->mcodeCtx.pValue = 0;
+        emcCustomStatus->mcodeCtx.qValue = 0;
+        emcCustomStatus->mcodeCtx.plcNotified = 0;
+        for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++) {
+            emcCustomStatus->mcodeCtx.activeMCodeList[i].mNumber = -1;
+            emcCustomStatus->mcodeCtx.activeMCodeList[i].value = 0;
+        }
+    }
+
 
     stepping = 0;
     steppingWait = 0;

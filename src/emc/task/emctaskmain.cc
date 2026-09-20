@@ -3658,6 +3658,11 @@ static int emctask_shutdown(void)
 	emcStatus = 0;
     }
 
+	if (0 != emcCustomStatusBuffer) {
+	delete emcCustomStatusBuffer;
+	emcCustomStatusBuffer = 0;
+	}
+
     if (0 != emcCommandBuffer) {
 	delete emcCommandBuffer;
 	emcCommandBuffer = 0;
@@ -3668,6 +3673,13 @@ static int emctask_shutdown(void)
 	delete emcStatus;
 	emcStatus = 0;
     }
+
+	if (0 != emcCustomStatus) {
+	delete emcCustomStatus;
+	emcCustomStatus = 0;
+	}
+
+
     return 0;
 }
 
@@ -4473,8 +4485,10 @@ int main(int argc, char *argv[])
 
 
 		// 第四内存、共享内存taskpc状态写入
-    	emcCustomStatusBuffer->write(emcCustomStatus);
-
+		if (emcCustomStatusBuffer && emcCustomStatus) 
+		{
+			emcCustomStatusBuffer->write(emcCustomStatus);
+		}
 
 		// wait on timer cycle, if specified, or calculate actual
 		// interval if INI file says to run full out via
