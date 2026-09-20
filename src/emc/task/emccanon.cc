@@ -2351,7 +2351,6 @@ void CUSTOM_USER_M_CODES(int index , bool p_flag , double p_number , bool q_flag
     mcode_cmd.mcodeCtx.activeMCodeList[0].value = 0;
     mcode_cmd.mcodeCtx.pValue = p_flag ? p_number : 0.0;
     mcode_cmd.mcodeCtx.qValue = q_flag ? q_number : 0.0;
-    mcode_cmd.mcodeCtx.qValue = q_flag ? q_number : 0.0;
     mcode_cmd.mcodeCtx.plcNotified = 0;
 
     interp_list.set_line_number(line_num);   // ★ 设行号
