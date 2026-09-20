@@ -152,23 +152,6 @@ EMC_TASK_STAT_MSG(EMC_TASK_STAT_TYPE, sizeof(EMC_TASK_STAT))
     delayLeft = 0.0;
     queuedMDIcommands = 0;
 
-    // ★ 新增：M代码列表初始化（给PLC读取）
-    for (int i = 0; i < EMC_MAX_MCODE_LIST; i++) 
-    {
-        mcodeListWithPLC[i].state = 0;    // 0=未使用, 1=使用中
-        mcodeListWithPLC[i].value = 0;  
-    }
-
-    // ★ 新增：当前行M代码上下文初始化
-    mcodeCtx.activeMcodeListCount = 0;
-    mcodeCtx.pValue = 0;
-    mcodeCtx.qValue = 0;
-    mcodeCtx.plcNotified = 0;
-    for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++) 
-    {
-        mcodeCtx.activeMCodeList[i].mNumber = -1;
-        mcodeCtx.activeMCodeList[i].value = 0;
-    }
 }
 
 EMC_TOOL_STAT::EMC_TOOL_STAT():
@@ -252,4 +235,27 @@ EMC_TOOL_STAT EMC_TOOL_STAT::operator =(EMC_TOOL_STAT s)
 
 EMC_STAT::EMC_STAT():EMC_STAT_MSG(EMC_STAT_TYPE, sizeof(EMC_STAT))
 {
+}
+
+
+EMC_CUSTOM_STAT::EMC_CUSTOM_STAT() : EMC_CUSTOM_STAT_MSG(EMC_CUSTOM_STAT_TYPE, sizeof(EMC_CUSTOM_STAT))
+{
+    // ★ 新增：M代码列表初始化（给PLC读取）
+    for (int i = 0; i < EMC_MAX_MCODE_LIST; i++) 
+    {
+        mcodeListWithPLC[i].state = 0;    // 0=未使用, 1=使用中
+        mcodeListWithPLC[i].value = 0;  
+    }
+
+    // ★ 新增：当前行M代码上下文初始化
+    mcodeCtx.activeMcodeListCount = 0;
+    mcodeCtx.pValue = 0;
+    mcodeCtx.qValue = 0;
+    mcodeCtx.plcNotified = 0;
+    for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++) 
+    {
+        mcodeCtx.activeMCodeList[i].mNumber = -1;
+        mcodeCtx.activeMCodeList[i].value = 0;
+    }
+
 }

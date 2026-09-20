@@ -1552,9 +1552,6 @@ class EMC_TASK_STAT:public EMC_TASK_STAT_MSG {
     int queuedMDIcommands;      // current length of MDI input queue
 
 
-    // ★ 新增：M代码列表（给PLC读取）
-    EMC_MCODE_ENTRY mcodeListWithPLC[EMC_MAX_MCODE_LIST];
-    EMC_TASK_MCODE_CTX mcodeCtx;          // 当前行激活的M代码上下文
 };
 
 // declarations for EMC_TOOL classes
@@ -2252,6 +2249,29 @@ class EMC_STAT:public EMC_STAT_MSG {
     EMC_IO_STAT io;
 
     int debug;			// copy of EMC_DEBUG global
+};
+
+
+// ============================================================
+// EMC_CUSTOM_STAT — task与PLC互通区
+// ============================================================
+
+class EMC_CUSTOM_STAT_MSG : public RCS_STAT_MSG {
+  public:
+    EMC_CUSTOM_STAT_MSG(NMLTYPE t, size_t s) : RCS_STAT_MSG(t, s) {}
+    void update(CMS *cms);
+};
+
+class EMC_CUSTOM_STAT : public EMC_CUSTOM_STAT_MSG {
+  public:
+    EMC_CUSTOM_STAT();
+    void update(CMS *cms);
+
+
+    // ★ 新增：M代码列表（给PLC读取）
+    EMC_MCODE_ENTRY mcodeListWithPLC[EMC_MAX_MCODE_LIST];
+    EMC_TASK_MCODE_CTX mcodeCtx;          // 当前行激活的M代码上下文
+
 };
 
 

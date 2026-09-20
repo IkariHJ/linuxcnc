@@ -469,6 +469,11 @@ int emcFormat(NMLTYPE type, void *buffer, CMS * cms)
 	((EMC_TRAJ_STEP *) buffer)->update(cms);
 	break;
 
+    // 第四内存 ★ 自定义状态块
+    case EMC_CUSTOM_STAT_TYPE:
+	((EMC_CUSTOM_STAT *) buffer)->update(cms);
+	break;
+
     default:
 	return (0);
     }
@@ -763,6 +768,11 @@ const char *emc_symbol_lookup(uint32_t type)
 	return "EMC_TRAJ_STEP";
     case EMC_MCODE_TYPE:
 	return "EMC_MCODE";
+
+    // 第四内存
+    case EMC_CUSTOM_STAT_TYPE:
+	return "EMC_CUSTOM_STAT";
+
     default:
 	return "UNKNOWN";
 	break;
@@ -1987,24 +1997,8 @@ void EMC_TASK_STAT::update(CMS * cms)
     cms->update(input_timeout);
     cms->update(rotation_xy);
 
-    // ★ 新增：M代码列表（给PLC读取）序列化
-    for (int i = 0; i < EMC_MAX_MCODE_LIST; i++) 
-    {
-        cms->update(mcodeListWithPLC[i].value);
-        cms->update(mcodeListWithPLC[i].state);
-    }
 
-    // ★ 新增：当前行M代码上下文序列化
-    cms->update(mcodeCtx.activeMcodeListCount);
-    cms->update(mcodeCtx.pValue);
-    cms->update(mcodeCtx.qValue);
-    cms->update(mcodeCtx.plcNotified);
-
-    for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++) 
-    {
-        cms->update(mcodeCtx.activeMCodeList[i].mNumber);
-        cms->update(mcodeCtx.activeMCodeList[i].value);
-    }}
+}
 
 /*
 *	NML/CMS Update function for EMC_TOOL_ABORT
@@ -3051,3 +3045,41 @@ void EMC_IO_SET_CYCLE_TIME::update(CMS * cms)
     cms->update(cycleTime);
 
 }
+
+
+
+// ============================================================
+// EMC_CUSTOM_STAT 实现
+// ============================================================
+
+void EMC_CUSTOM_STAT_MSG::update(CMS *cms)
+{
+    RCS_STAT_MSG::update(cms);
+}
+
+void EMC_CUSTOM_STAT::update(CMS *cms)
+{
+    EMC_CUSTOM_STAT_MSG::update(cms);
+
+
+    // ★ 新增：M代码列表（给PLC读取）序列化
+    for (int i = 0; i < EMC_MAX_MCODE_LIST; i++) 
+    {
+        cms->update(mcodeListWithPLC[i].value);
+        cms->update(mcodeListWithPLC[i].state);
+    }
+
+    // ★ 新增：当前行M代码上下文序列化
+    cms->update(mcodeCtx.activeMcodeListCount);
+    cms->update(mcodeCtx.pValue);
+    cms->update(mcodeCtx.qValue);
+    cms->update(mcodeCtx.plcNotified);
+
+    for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++) 
+    {
+        cms->update(mcodeCtx.activeMCodeList[i].mNumber);
+        cms->update(mcodeCtx.activeMCodeList[i].value);
+    }
+
+}
+

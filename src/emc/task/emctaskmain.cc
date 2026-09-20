@@ -106,6 +106,10 @@ static RCS_CMD_MSG *emcCommand = 0;
 // global EMC status
 EMC_STAT *emcStatus = 0;
 
+// 第四内存 ★ 自定义状态块
+static RCS_STAT_CHANNEL *emcCustomStatusBuffer = 0;
+EMC_CUSTOM_STAT *emcCustomStatus = 0;
+
 // timer stuff
 static RCS_TIMER *timer = 0;
 
@@ -1676,8 +1680,8 @@ static int emcTaskCheckPreconditions(NMLmsg * cmd)
 	// 1、对emcStatus->MCodes.ActiveMCode数组置位，表示当前正在执行的M代码
     // 步骤1： emcStatus->MCodes.ActiveMCode = ((EMC_M_CODE_MEG *) cmd)->activemcode;
     // 步骤2： 判断emcStatus->MCodes.ActiveMCode 是否有被触发的M代码，有：继续执行步骤3，没有：返回EMC_TASK_EXEC_DONE
-	emcStatus->task.mcodeCtx = ((EMC_M_CODE_MEG *) cmd)->mcodeCtx;
-	if(emcStatus->task.mcodeCtx.activeMcodeListCount <= 0)
+	emcCustomStatus->mcodeCtx = ((EMC_M_CODE_MEG *) cmd)->mcodeCtx;
+	if(emcCustomStatus->mcodeCtx.activeMcodeListCount <= 0)
 	{
 		return EMC_TASK_EXEC_DONE;
 	}
@@ -2802,28 +2806,28 @@ static int emcTaskExecute(void)
 		bool motionDone = (emcStatus->motion.traj.queue == 0);  
 		
 		// --- motion 第一次完成时，才置位 PLC（只置位一次）---
-		if (motionDone && emcStatus->task.mcodeCtx.plcNotified == 0)
+		if (motionDone && emcCustomStatus->mcodeCtx.plcNotified == 0)
 		{
-			emcStatus->task.mcodeCtx.plcNotified = 1;
+			emcCustomStatus->mcodeCtx.plcNotified = 1;
 			static int wait_loop = 0;
 			if (wait_loop++ % 100 == 0) 
 			{
-				rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcStatus->task.mcodeCtx.plcNotified);
-				rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcStatus->task.mcodeCtx.plcNotified);
+				rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcCustomStatus->mcodeCtx.plcNotified);
+				rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcCustomStatus->mcodeCtx.plcNotified);
 			}
 
 			for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++)
 			{
-				int mnum = emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber;
+				int mnum = emcCustomStatus->mcodeCtx.activeMCodeList[i].mNumber;
 				if (mnum <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST) continue;
 				if (mnum >= EMC_MAX_MCODE_LIST) continue;
 				
-				emcStatus->task.mcodeListWithPLC[mnum].state = 1;
-				emcStatus->task.mcodeListWithPLC[mnum].value = emcStatus->task.mcodeCtx.activeMCodeList[i].value;
+				emcCustomStatus->mcodeListWithPLC[mnum].state = 1;
+				emcCustomStatus->mcodeListWithPLC[mnum].value = emcCustomStatus->mcodeCtx.activeMCodeList[i].value;
 			}
 			rcs_print("MCODE PLC notified: line=%d\n", emcStatus->task.currentLine);
 		}
-		else if(motionDone && emcStatus->task.mcodeCtx.plcNotified == 1 )
+		else if(motionDone && emcCustomStatus->mcodeCtx.plcNotified == 1 )
 		{
 			{
 				// ★ 加日志
@@ -2831,11 +2835,11 @@ static int emcTaskExecute(void)
 				if (wait_loop++ % 100 == 0) {
 					rcs_print("MCODE wait: loop=%d count=%d m0=%d state[%d]=%d\n",
 						wait_loop,
-						emcStatus->task.mcodeCtx.activeMcodeListCount,
-						emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber,
-						emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber,
-						emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[0].mNumber].state);
-					rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcStatus->task.mcodeCtx.plcNotified);
+						emcCustomStatus->mcodeCtx.activeMcodeListCount,
+						emcCustomStatus->mcodeCtx.activeMCodeList[0].mNumber,
+						emcCustomStatus->mcodeCtx.activeMCodeList[0].mNumber,
+						emcCustomStatus->mcodeListWithPLC[emcCustomStatus->mcodeCtx.activeMCodeList[0].mNumber].state);
+					rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcCustomStatus->mcodeCtx.plcNotified);
 				}
 			}
 			// emcStatus->MCodes.ActiveMCode[];   
@@ -2843,7 +2847,7 @@ static int emcTaskExecute(void)
 			// 其他的不判断（初步计划于emcTaskCheckPreconditions中对emcStatus->MCodes.ActiveMCode数组置False）
 
 			// 这行为异常情况，进入此分支后，说明本行M代码下发时没有任何M代码被触发，表示给的数据有问题，直接报错
-			if(emcStatus->task.mcodeCtx.activeMcodeListCount <= 0)
+			if(emcCustomStatus->mcodeCtx.activeMcodeListCount <= 0)
 			{
 				emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
 			}
@@ -2857,24 +2861,24 @@ static int emcTaskExecute(void)
 				for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++)
 				{
 
-					if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber < 0)
+					if(emcCustomStatus->mcodeCtx.activeMCodeList[i].mNumber < 0)
 					{
 						continue;
 					}
 					// 0~100
 					// 如果M代码号小于等于100，表示是系统保留的M代码，不需要等待PLC反馈，直接跳过
-					else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST)
+					else if(emcCustomStatus->mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST)
 					{
 						continue;
 					}
 					// 100~500
 					// 非阻塞型M代码，不需要等待执行完毕，直接跳过
-					else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_UNBLOCK_BOUNDARY_MCODE_LIST)
+					else if(emcCustomStatus->mcodeCtx.activeMCodeList[i].mNumber <= EMC_MAX_UNBLOCK_BOUNDARY_MCODE_LIST)
 					{
 						continue;
 					}
 					// > 1000 的M代码号，表示是非法的M代码号，直接报错
-					else if(emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber >= EMC_MAX_MCODE_LIST)
+					else if(emcCustomStatus->mcodeCtx.activeMCodeList[i].mNumber >= EMC_MAX_MCODE_LIST)	
 					{
 						emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
 						allDone = false;
@@ -2883,7 +2887,7 @@ static int emcTaskExecute(void)
 					// 500~1000
 					else 
 					{
-						EMC_MCODE_ENTRY tmp = emcStatus->task.mcodeListWithPLC[emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber];
+						EMC_MCODE_ENTRY tmp = emcCustomStatus->mcodeListWithPLC[emcCustomStatus->mcodeCtx.activeMCodeList[i].mNumber];
 						if(tmp.state > 0)
 						{
 							allDone = false;
@@ -2900,11 +2904,11 @@ static int emcTaskExecute(void)
 					{
 						rcs_print("M_CODES done: line=%d count=%d\n",
 							emcStatus->task.currentLine,
-							emcStatus->task.mcodeCtx.activeMcodeListCount);
+							emcCustomStatus->mcodeCtx.activeMcodeListCount);
 					}
 					
 					// 清理本行M代码上下文，为下一行做准备
-					mcode_ctx_reset(&emcStatus->task.mcodeCtx);
+					mcode_ctx_reset(&emcCustomStatus->mcodeCtx);
 					
 					emcStatus->task.execState = EMC_TASK_EXEC_DONE;
 					rcs_print("MCODE done: line=%d\n", emcStatus->task.currentLine);
@@ -2918,7 +2922,7 @@ static int emcTaskExecute(void)
 		{
 			static int wait_loop = 0;
 			if (wait_loop++ % 100 == 0) {
-				rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcStatus->task.mcodeCtx.plcNotified);
+				rcs_print("MCODE PLC notified: motionDone=%d , plcNotified=%d\n", emcStatus->motion.traj.queue, emcCustomStatus->mcodeCtx.plcNotified);
 			}
 		}
 		break;
@@ -3328,6 +3332,51 @@ static int emctask_startup()
     }
 
 	/////////////////////////////////////// 阶段 2：创建 NML 状态通道 emcStatusBuffer ///////////////////////////////////////
+
+	/////////////////////////////////////// 阶段 test：创建 NML 状态通道 emcCustomStatusBuffer ///////////////////////////////////////
+
+    end = RETRY_TIME;
+    good = 0;
+    do 
+	{
+		// 先释放旧缓冲区，防止内存泄漏
+		if (NULL != emcCustomStatusBuffer) 
+		{
+			delete emcCustomStatusBuffer;
+		}
+
+		// 基于emc_nmlfile（.nml配置文件）创建NML状态共享内存通道
+		emcCustomStatusBuffer = new RCS_STAT_CHANNEL(emcFormat, "emcCustomStatus", "emc", emc_nmlfile);
+		if (emcCustomStatusBuffer->valid()) 
+		{
+			good = 1;
+			break;
+		}
+		esleep(RETRY_INTERVAL);
+		end -= RETRY_INTERVAL;
+
+		// 检测全局退出标记done，若已置位则执行关机并异常退出
+		if (done) 
+		{
+			emctask_shutdown();
+			exit(1);
+		}
+    } 
+	while (end > 0.0);
+
+	// 恢复日志输出到终端
+    set_rcs_print_destination(RCS_PRINT_TO_STDOUT);	// restore diag
+
+    // messages
+	// 创建NML状态共享内存通道失败
+	// 直接退出
+    if (!good) 
+	{
+		rcs_print_error("can't get emcCustomStatusBuffer buffer\n");
+		return -1;
+    }
+
+	/////////////////////////////////////// 阶段 test：创建 NML 状态通道 emcCustomStatusBuffer ///////////////////////////////////////
 
 	// 非NML调试模式时，临时屏蔽冗余日志
     if (!(emc_debug & EMC_DEBUG_NML)) 
@@ -3935,6 +3984,8 @@ int main(int argc, char *argv[])
 	// EMC_STAT结构体状态信息 : IO、TASK、MOTION
     emcStatus = new EMC_STAT;
 
+	emcCustomStatus = new EMC_CUSTOM_STAT;
+
 #ifdef TOOL_NML 
 	// NML消息式刀具通信模式
     tool_nml_register( (CANON_TOOL_TABLE*)&emcStatus->io.tool.toolTable);
@@ -4326,7 +4377,7 @@ int main(int argc, char *argv[])
 
 		// 这段为测试代码，后续需要删除
 		// 这段为了模拟PLC的M代码状态，定时清理过期的M代码状态
-		if(emcStatus->task.execState == EMC_TASK_EXEC_WAITING_FOR_M_CODES_AND_MOTION && emcStatus->task.mcodeCtx.plcNotified == 1)		
+		if(emcStatus->task.execState == EMC_TASK_EXEC_WAITING_FOR_M_CODES_AND_MOTION && emcCustomStatus->mcodeCtx.plcNotified == 1)		
 		{
 			static time_t last_plc_simulate = 0;
 			static int last_mcode_line = -1;  // ★ 记录上一次处理的M代码行号
@@ -4349,13 +4400,13 @@ int main(int argc, char *argv[])
 				int reset_count = 0;
 				for (int i = 0; i < EMC_MAX_ACTIVE_MCODE_LIST; i++)
 				{
-					int mnum = emcStatus->task.mcodeCtx.activeMCodeList[i].mNumber;
+					int mnum = emcCustomStatus->mcodeCtx.activeMCodeList[i].mNumber;
 					if(mnum <= EMC_MAX_OFFICIAL_BOUNDARY_MCODE_LIST) continue;
 					if(mnum >= EMC_MAX_MCODE_LIST) continue;
-					if(emcStatus->task.mcodeListWithPLC[mnum].state == 0) continue;  // 已经是0的不用管
+					if(emcCustomStatus->mcodeListWithPLC[mnum].state == 0) continue;  // 已经是0的不用管
 
-					emcStatus->task.mcodeListWithPLC[mnum].state = 0;
-					emcStatus->task.mcodeListWithPLC[mnum].value = 0;
+					emcCustomStatus->mcodeListWithPLC[mnum].state = 0;
+					emcCustomStatus->mcodeListWithPLC[mnum].value = 0;
 					rcs_print("PLC simulate:  M%d cleared\n", mnum);
 					reset_count++;
 				}
@@ -4419,6 +4470,11 @@ int main(int argc, char *argv[])
 		// no need to call the individual functions on all WM items.
 		// 共享内存状态写入
 		emcStatusBuffer->write(emcStatus);
+
+
+		// 第四内存、共享内存taskpc状态写入
+    	emcCustomStatusBuffer->write(emcCustomStatus);
+
 
 		// wait on timer cycle, if specified, or calculate actual
 		// interval if INI file says to run full out via

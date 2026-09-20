@@ -98,6 +98,7 @@ static void daemonize()
 
 static RCS_CMD_CHANNEL *emcCommandChannel = NULL;
 static RCS_STAT_CHANNEL *emcStatusChannel = NULL;
+static RCS_STAT_CHANNEL *emcCustomStatusChannel = NULL;  // ★ 加声明
 static NML *emcErrorChannel = NULL;
 static RCS_CMD_CHANNEL *toolCommandChannel = NULL;
 static RCS_STAT_CHANNEL *toolStatusChannel = NULL;
@@ -122,7 +123,7 @@ int main(int argc, char *argv[])
     start_time = etime();
 
     while (fabs(etime() - start_time) < 10.0 &&
-	   (emcCommandChannel == NULL || emcStatusChannel == NULL
+	   (emcCommandChannel == NULL || emcStatusChannel == NULL || emcCustomStatusChannel == NULL
 	    || (tool_channels && (toolCommandChannel == NULL || toolStatusChannel == NULL))
 	    || emcErrorChannel == NULL)
 	) {
@@ -135,8 +136,12 @@ int main(int argc, char *argv[])
 	if (NULL == emcStatusChannel) {
 	    rcs_print("emcStatusChannel==NULL, attempt to create\n");
 	    emcStatusChannel =
-		new RCS_STAT_CHANNEL(emcFormat, "emcStatus", "emcsvr",
-				     emc_nmlfile);
+		new RCS_STAT_CHANNEL(emcFormat, "emcStatus", "emcsvr", emc_nmlfile);
+	}
+	if (NULL == emcCustomStatusChannel) {
+    	rcs_print("emcCustomStatusChannel==NULL, attempt to create\n");
+		emcCustomStatusChannel =
+        new RCS_STAT_CHANNEL(emcFormat, "emcCustomStatus", "emcsvr", emc_nmlfile);
 	}
 	if (NULL == emcErrorChannel) {
 	    emcErrorChannel =
@@ -162,6 +167,10 @@ int main(int argc, char *argv[])
 	if (!emcStatusChannel->valid()) {
 	    delete emcStatusChannel;
 	    emcStatusChannel = NULL;
+	}
+	if (!emcCustomStatusChannel->valid()) {
+	    delete emcCustomStatusChannel;
+	    emcCustomStatusChannel = NULL;
 	}
 	if (!emcErrorChannel->valid()) {
 	    delete emcErrorChannel;
@@ -190,6 +199,11 @@ int main(int argc, char *argv[])
     if (NULL == emcStatusChannel) {
 	emcStatusChannel =
 	    new RCS_STAT_CHANNEL(emcFormat, "emcStatus", "emcsvr",
+				 emc_nmlfile);
+    }
+    if (NULL == emcCustomStatusChannel) {
+	emcCustomStatusChannel =
+	    new RCS_STAT_CHANNEL(emcFormat, "emcCustomStatus", "emcsvr",
 				 emc_nmlfile);
     }
     if (NULL == emcErrorChannel) {

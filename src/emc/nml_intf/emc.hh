@@ -248,6 +248,10 @@ struct PM_CARTESIAN;
 
 #define EMC_STAT_TYPE                                ((NMLTYPE) 1999)
 
+// 第四内存使用
+#define EMC_CUSTOM_STAT_TYPE                         ((NMLTYPE) 2000)
+
+
 // types for EMC_TASK mode
 enum EMC_TASK_MODE_ENUM {
     EMC_TASK_MODE_MANUAL = 1,
