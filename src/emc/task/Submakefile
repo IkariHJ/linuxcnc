@@ -14,6 +14,7 @@ MILLTASKSRCS := \
 	emc/task/emctask.cc \
 	emc/task/emccanon.cc \
 	emc/task/emctaskmain.cc \
+	emc/task/ve_var.cc \
 	emc/motion/usrmotintf.cc \
 	emc/motion/emcmotutil.c \
 	emc/task/taskintf.cc \

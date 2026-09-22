@@ -62,6 +62,8 @@
 #include <rtapi_string.h>	// rtapi_strlcpy()
 #include "tooldata.hh"
 #include <time.h>
+#include "ve_var.h"
+
 
 #if 0
 // Enable this to niftily trap floating point exceptions for debugging
@@ -3679,6 +3681,8 @@ static int emctask_shutdown(void)
 	emcCustomStatus = 0;
 	}
 
+	// ===== VE 变量内存释放 =====
+    emcVeVarShutdown();
 
     return 0;
 }
@@ -3997,6 +4001,26 @@ int main(int argc, char *argv[])
     emcStatus = new EMC_STAT;
 
 	emcCustomStatus = new EMC_CUSTOM_STAT;
+
+	// 加载 VE 变量
+	{
+		IniFile inifile;
+		const char *veFile = NULL;
+		if (inifile.Open(emc_inifile)) 
+		{
+			veFile = inifile.Find("VE_FILE", "EMC");
+		}
+		if (veFile && *veFile) 
+		{
+			rcs_print_error("VE: VE_FILE found in [EMC] section, veFile=%s\n", veFile);
+			emcVeVarLoadFromIni(veFile);
+		} 
+		else 
+		{
+			rcs_print_error("VE: VE_FILE not found in [EMC] section, skip\n");
+		}
+	}
+
 
 #ifdef TOOL_NML 
 	// NML消息式刀具通信模式
