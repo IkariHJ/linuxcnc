@@ -192,7 +192,7 @@ int emcVeVarLoadFromIni(const char *iniPath)
 // ============================================================
 // 写 VE 变量
 // ============================================================
-int emcVeVarSet(const char *varName, int index, double value)
+int emcVeVarSet(const char *varName, int arrIndex, double value)
 {
     if (!varName || !*varName) return -1;
 
@@ -205,9 +205,9 @@ int emcVeVarSet(const char *varName, int index, double value)
     if (it->second.access == VE_ACCESS_READ_ONLY) return -3;  // 只读
 
     int sz = (it->second.arraySize > 0) ? it->second.arraySize : 1;
-    if (index < 0 || index >= sz) return -4;   // 越界
+    if (arrIndex < 0 || arrIndex >= sz) return -4;   // 越界
 
-    it->second.data[index] = value;
+    it->second.data[arrIndex] = value;
 
     // 同步模式：标记就绪
     if (it->second.sync) {

@@ -2290,6 +2290,19 @@ class EMC_M_CODE_MEG:public EMC_TRAJ_CMD_MSG {
 };
 
 
+// EMC_WRITE_VE_VAR command base class
+class EMC_WRITE_VE_VAR_MSG : public EMC_CMD_MSG {
+  public:
+    EMC_WRITE_VE_VAR_MSG():EMC_CMD_MSG(EMC_WRITE_VE_VAR_TYPE, sizeof(EMC_WRITE_VE_VAR_MSG)) {};
+
+    void update(CMS * cms);
+
+    char   varName[64];    // 变量名（不含 VE. 前缀）
+    int    arrIndex;           // 数组索引，标量填0
+    double value;           // 写入值
+};
+
+
 
 /*
    Declarations of EMC status class implementations, for major subsystems.

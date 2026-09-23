@@ -894,6 +894,7 @@ static int emcTaskPlan(void)
 						case EMC_MOTION_SET_AOUT_TYPE:
 						case EMC_TRAJ_RIGID_TAP_TYPE:
 						case EMC_TRAJ_SET_TELEOP_ENABLE_TYPE:
+						case EMC_WRITE_VE_VAR_TYPE:
 						case EMC_SET_DEBUG_TYPE:
 							retval = emcTaskIssueCommand(emcCommand);
 							break;
@@ -1056,6 +1057,15 @@ static int emcTaskPlan(void)
 							}
 							break;
 
+
+
+							
+						case EMC_WRITE_VE_VAR_TYPE:
+							retval = emcTaskQueueCommand(emcCommand);
+							break;
+
+
+
 						// otherwise we can't handle it
 						default:
 							emcOperatorError(0, _("can't do that (%s:%d) in manual mode"),
@@ -1163,6 +1173,13 @@ static int emcTaskPlan(void)
 									emcTaskQueueCommand(&taskPlanSynchCmd);
 									break;
 									// otherwise we can't handle it
+
+
+								case EMC_WRITE_VE_VAR_TYPE:
+									retval = emcTaskQueueCommand(emcCommand);
+									break;
+
+									
 								default:
 									//EMC_TASK_MODE_AUTO(2) && EMC_TASK_INTERP_IDLE(1)
 									if ( allow_while_idle_type() ) 
@@ -1238,6 +1255,12 @@ static int emcTaskPlan(void)
 									break;
 
 									// otherwise we can't handle it
+
+								case EMC_WRITE_VE_VAR_TYPE:
+									retval = emcTaskQueueCommand(emcCommand);
+									break;
+
+									
 								default:
 									emcOperatorError(0, _
 										("can't do that (%s) in auto mode with the interpreter reading"),
@@ -1328,6 +1351,13 @@ static int emcTaskPlan(void)
 									break;
 
 									// otherwise we can't handle it
+
+
+								case EMC_WRITE_VE_VAR_TYPE:
+									retval = emcTaskQueueCommand(emcCommand);
+									break;
+
+
 								default:
 									emcOperatorError(0, _
 										("can't do that (%s) in auto mode with the interpreter paused"),
@@ -1399,6 +1429,13 @@ static int emcTaskPlan(void)
 									break;
 
 									// otherwise we can't handle it
+
+
+								case EMC_WRITE_VE_VAR_TYPE:
+									retval = emcTaskQueueCommand(emcCommand);
+									break;
+
+
 								default:
 									emcOperatorError(0, _
 										("can't do that (%s) in auto mode with the interpreter waiting"),
@@ -1517,6 +1554,12 @@ static int emcTaskPlan(void)
 							// then resynch interpreter
 							emcTaskQueueCommand(&taskPlanSynchCmd);
 							break;
+
+
+						case EMC_WRITE_VE_VAR_TYPE:
+							retval = emcTaskQueueCommand(emcCommand);
+							break;
+
 
 						// otherwise we can't handle it
 						default:
@@ -2514,6 +2557,24 @@ static int emcTaskIssueCommand(NMLmsg * cmd)
 		case EMC_IO_PLUGIN_CALL_TYPE:
 			retval =  emcIoPluginCall( (EMC_IO_PLUGIN_CALL *) cmd);
 			break;
+
+		
+
+		case EMC_WRITE_VE_VAR_TYPE:
+		{
+			EMC_WRITE_VE_VAR_MSG *msg = (EMC_WRITE_VE_VAR_MSG *)cmd;
+			int ret = emcVeVarSet(msg->varName, msg->arrIndex, msg->value);
+			if (ret != 0) {
+				rcs_print_error("VE: write failed var=%s idx=%d ret=%d\n",
+					msg->varName, msg->arrIndex, ret);
+			} else {
+				rcs_print("VE: write var=%s idx=%d val=%f\n",
+					msg->varName, msg->arrIndex, msg->value);
+			}
+			retval = 0;
+			break;
+		}
+
 
 		default:
 			// unrecognized command

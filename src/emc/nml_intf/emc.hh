@@ -136,6 +136,10 @@ struct PM_CARTESIAN;
 // M代码相关
 #define EMC_MCODE_TYPE                               ((NMLTYPE) 240)
 
+// M代码相关
+#define EMC_WRITE_VE_VAR_TYPE                        ((NMLTYPE) 242)
+
+
 #define EMC_TRAJ_STAT_TYPE                           ((NMLTYPE) 299)
 
 // EMC_MOTION aggregate class type declaration

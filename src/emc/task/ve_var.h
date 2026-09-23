@@ -47,7 +47,7 @@ int emcVeVarLoadFromIni(const char *iniPath);
 
 // 写 VE 变量（PLC/Qt HMI 通过 NML 命令调用）
 // 返回 0 成功, 非0 失败（变量不存在/权限拒绝/越界）
-int emcVeVarSet(const char *varName, int index, double value);
+int emcVeVarSet(const char *varName, int arrIndex, double value);
 
 // 读 VE 变量（task/G代码 调用）
 // ok 非空时填是否成功

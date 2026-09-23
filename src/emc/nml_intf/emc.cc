@@ -766,8 +766,13 @@ const char *emc_symbol_lookup(uint32_t type)
 	return "EMC_TRAJ_STAT";
     case EMC_TRAJ_STEP_TYPE:
 	return "EMC_TRAJ_STEP";
+
     case EMC_MCODE_TYPE:
 	return "EMC_MCODE";
+
+    case EMC_WRITE_VE_VAR_TYPE:
+    return "EMC_WRITE_VE_VAR";
+
 
     // 第四内存
     case EMC_CUSTOM_STAT_TYPE:
@@ -3081,5 +3086,19 @@ void EMC_CUSTOM_STAT::update(CMS *cms)
         cms->update(mcodeCtx.activeMCodeList[i].value);
     }
 
+}
+
+
+
+// ============================================================
+// VE 实现
+// ============================================================
+
+void EMC_WRITE_VE_VAR_MSG::update(CMS * cms)
+{
+  EMC_CMD_MSG::update(cms);
+  cms->update(varName, 64);
+  cms->update(arrIndex);
+  cms->update(value);
 }
 
