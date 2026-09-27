@@ -49,6 +49,9 @@ namespace bp = boost::python;
 #include "rs274ngc_interp.hh"
 #include "inifile.hh"
 
+#include "task/ve_var.h"
+#include <cmath>
+
 // for HAL pin variables
 #include "hal.h"
 
@@ -167,6 +170,37 @@ int Interp::read_named_parameter(
     CHP(read_name(line, counter, paramNameBuf));
 
     CHP(find_named_param(paramNameBuf, &exists, &value));
+
+
+    // ★ VE 变量拦截
+    if (strncasecmp(paramNameBuf, "VE.", 3) == 0) {
+        veLineHasVE = true;  // ★ 标记这行引用了VE
+        if (emcVeVarIsSync(paramNameBuf)) {
+            // 阻塞型 VE
+            if (_setup.remap_level > 0 || veWaitDone) {
+                // remap里或已等过motion空 → 直接读真实值
+                bool ok;
+                double v = emcVeVarGet(paramNameBuf, 0, &ok);
+                printf("VE: '%s' = %f (direct)\n", paramNameBuf, v);
+                *double_ptr = v;
+                return INTERP_OK;
+            }
+            // 返回 NaN 标记，等重新执行
+            veNanCount++;
+            printf("VE: blocking '%s' -> NaN (count=%d)\n", paramNameBuf, veNanCount);
+            *double_ptr = std::nan("ve_wait");
+            return INTERP_OK;
+        } else {
+            // 非阻塞型：直接读当前值
+            bool ok;
+            double v = emcVeVarGet(paramNameBuf, 0, &ok);
+            printf("VE: non-blocking '%s' = %f\n", paramNameBuf, v);
+            *double_ptr = v;
+            return INTERP_OK;
+        }
+    }
+
+    
     if (check_exists) {
 	*double_ptr = exists ? 1.0 : 0.0;
 	return INTERP_OK;

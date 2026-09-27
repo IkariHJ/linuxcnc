@@ -56,4 +56,20 @@ double emcVeVarGet(const char *varName, int index, bool *ok = 0);
 // 释放所有 VE 变量内存（task 退出时调用）
 void emcVeVarShutdown(void);
 
+
+
+
+// ===== VE 阻塞执行状态 =====
+extern int  veNanCount;       // 当前行阻塞 VE 数量（每次 read 开头清零）
+extern bool veWaitDone;       // true=已等motion空, 阻塞VE直接读真实值
+extern bool veWaitTriggered;  // true=这次INTERP_EXECUTE_FINISH是VE导致的
+extern bool veLineHasVE;  // 当前行是否引用了VE变量（赋值行=false, VE运动行=true）
+extern long veReadOffset;  // 当前 read 行的文件位置（VE回退用）
+extern long veWaitOffset;  // VE等待时保存的文件位置，用于恢复
+
+
+// 判断 VE 是否阻塞型（sync=1）
+bool emcVeVarIsSync(const char *varName);
+
+
 #endif // VE_VAR_H

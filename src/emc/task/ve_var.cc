@@ -6,6 +6,7 @@
 #include <string>
 #include <map>
 #include <algorithm>
+#include <cmath>
 
 #include "rcs_print.hh"
 
@@ -196,6 +197,8 @@ int emcVeVarSet(const char *varName, int arrIndex, double value)
 {
     if (!varName || !*varName) return -1;
 
+    if (strncasecmp(varName, "VE.", 3) == 0) varName += 3;  // ★ 自动去前缀
+    
     std::string key(varName);
     std::transform(key.begin(), key.end(), key.begin(), ::tolower);
 
@@ -223,6 +226,8 @@ double emcVeVarGet(const char *varName, int index, bool *ok)
 {
     if (ok) *ok = false;
     if (!varName || !*varName) return 0.0;
+
+    if (strncasecmp(varName, "VE.", 3) == 0) varName += 3;  // ★ 自动去前缀
 
     std::string key(varName);
     std::transform(key.begin(), key.end(), key.begin(), ::tolower);
@@ -253,3 +258,30 @@ void emcVeVarShutdown(void)
     }
     veVarTable.clear();
 }
+
+
+
+// ============================================================
+// VE 阻塞执行状态
+// ============================================================
+int  veNanCount = 0;
+bool veWaitDone = false;
+bool veWaitTriggered = false;
+bool veLineHasVE = false;
+long veReadOffset = 0;
+long veWaitOffset = -1;
+
+
+bool emcVeVarIsSync(const char *varName)
+{
+    if (!varName || !*varName) return false;
+    
+    if (strncasecmp(varName, "VE.", 3) == 0) varName += 3;  // ★ 自动去前缀
+    
+    std::string key(varName);
+    std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+    auto it = veVarTable.find(key);
+    if (it == veVarTable.end()) return false;
+    return it->second.sync != 0;
+}
+

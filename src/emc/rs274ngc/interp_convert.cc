@@ -37,6 +37,9 @@
 #include "interp_parameter_def.hh"
 #include <rtapi_string.h>
 
+#include "task/ve_var.h"
+#include <cmath>
+
 #include "units.h"
 #define TOOL_INSIDE_ARC(side, turn) (((side)==LEFT&&(turn)>0)||((side)==RIGHT&&(turn)<0))
 #define DEBUG_EMC
@@ -4838,6 +4841,15 @@ int Interp::convert_straight(int move,   //!< either G_0 or G_1
   settings->motion_mode = move;
   CHP(find_ends(block, settings, &end_x, &end_y, &end_z,
                 &AA_end, &BB_end, &CC_end, &u_end, &v_end, &w_end));
+
+    // ★ VE 阻塞：坐标含 NaN，跳过运动生成，等重新执行
+    if (std::isnan(end_x) || std::isnan(end_y) || std::isnan(end_z) ||
+        std::isnan(AA_end) || std::isnan(BB_end) || std::isnan(CC_end) ||
+        std::isnan(u_end) || std::isnan(v_end) || std::isnan(w_end)) {
+        printf("VE: NaN endpoint, skip motion\n");
+        dequeue_canons(settings);  // ★ 强制flush G64缓存的运动段，确保之前的运动执行
+        return INTERP_OK;
+    }
 
   if (move == G_1) {
       inverse_time_rate_straight(end_x, end_y, end_z,

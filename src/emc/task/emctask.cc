@@ -34,6 +34,7 @@
 #include "python_plugin.hh"
 #include "taskclass.hh"
 #include "motion.h"
+#include "ve_var.h"
 
 #define USER_DEFINED_FUNCTION_MAX_DIRS 5
 #define MAX_M_DIRS (USER_DEFINED_FUNCTION_MAX_DIRS+1)
@@ -453,6 +454,14 @@ static int waitFlag = 0;
 
 int emcTaskPlanInit()
 {
+    // ★ VE 状态复位
+    veWaitDone = false;
+    veWaitTriggered = false;
+    veWaitOffset = -1;
+    veNanCount = 0;
+    veLineHasVE = false;
+
+
     if(!pinterp) {
 	IniFile inifile;
 	const char *inistring;
@@ -564,6 +573,14 @@ void emcTaskPlanExit()
 
 int emcTaskPlanOpen(const char *file)
 {
+    // ★ 每次运行程序时复位 VE 阻塞状态
+    veWaitDone = false;
+    veWaitTriggered = false;
+    veWaitOffset = -1;
+    veNanCount = 0;
+    veLineHasVE = false;
+
+
     if (emcStatus != 0) {
 	emcStatus->task.motionLine = 0;
 	emcStatus->task.currentLine = 0;

@@ -104,6 +104,9 @@ include an option for suppressing superfluous commands.
 #include <unordered_set>
 
 #include <interp_parameter_def.hh>
+#include "task/ve_var.h"
+#include <cmath>
+
 using namespace interp_param_global;
 
 namespace bp = boost::python;
@@ -1559,6 +1562,18 @@ zero, this parses the line into the _setup.block1.
 
 int Interp::_read(const char *command)  //!< may be NULL or a string to read
 {
+  veNanCount = 0;  // ★ 每行开始时清零
+  veLineHasVE = false;  // ★ 每行开始时清零
+  // ★ VE等待完成后，恢复文件指针到VE行位置
+  if (veWaitDone && veWaitOffset >= 0) {
+      if (_setup.file_pointer) {
+          fseek(_setup.file_pointer, veWaitOffset, SEEK_SET);
+          printf("VE: restore fp to %ld\n", veWaitOffset);
+      }
+      veWaitOffset = -1;
+  }
+
+
   static char name[] = "Interp::read";
   int read_status;
 
@@ -1670,6 +1685,13 @@ int Interp::_read(const char *command)  //!< may be NULL or a string to read
   if(_setup.file_pointer)
   {
       EXECUTING_BLOCK(_setup).offset = ftell(_setup.file_pointer);
+      veReadOffset = EXECUTING_BLOCK(_setup).offset;  // ★ 同步记录
+      printf("VE: read offset=%ld text='%.40s'\n",
+             (long)EXECUTING_BLOCK(_setup).offset, _setup.linetext);
+  }
+  else
+  {
+      printf("VE: read SKIP offset, fp=NULL command=%p\n", (void*)command);
   }
 
   read_status =
@@ -1688,30 +1710,42 @@ int Interp::_read(const char *command)  //!< may be NULL or a string to read
     if (_setup.line_length != 0) 
     {  
       // ★ 调试打印：解析出的 block 内容
-      {
-          block_pointer bp = &EXECUTING_BLOCK(_setup);
-          printf("=== PARSE line=%d text='%s' ===\n",
-                    bp->line_number, _setup.blocktext);
-          printf("  G: %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
-                    bp->g_modes[0], bp->g_modes[1], bp->g_modes[2], bp->g_modes[3],
-                    bp->g_modes[4], bp->g_modes[5], bp->g_modes[6], bp->g_modes[7],
-                    bp->g_modes[8], bp->g_modes[9], bp->g_modes[10], bp->g_modes[11],
-                    bp->g_modes[12]);
-          printf("  M: %d %d %d %d %d %d %d\n",
-                    bp->m_modes[0], bp->m_modes[1], bp->m_modes[2],
-                    bp->m_modes[3], bp->m_modes[4], bp->m_modes[5],
-                    bp->m_modes[6]);
-          if (bp->x_flag) printf("  X: %f\n", bp->x_number);
-          if (bp->y_flag) printf("  Y: %f\n", bp->y_number);
-          if (bp->z_flag) printf("  Z: %f\n", bp->z_number);
-          if (bp->f_flag) printf("  F: %f\n", bp->f_number);
-          if (bp->s_flag) printf("  S: %f\n", bp->s_number);
-          if (bp->p_flag) printf("  P: %f\n", bp->p_number);
-          if (bp->q_flag) printf("  Q: %f\n", bp->q_number);
-          printf("========================\n");
-      }
+      // {
+      //     block_pointer bp = &EXECUTING_BLOCK(_setup);
+      //     printf("=== PARSE line=%d text='%s' ===\n",
+      //               bp->line_number, _setup.blocktext);
+      //     printf("  G: %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
+      //               bp->g_modes[0], bp->g_modes[1], bp->g_modes[2], bp->g_modes[3],
+      //               bp->g_modes[4], bp->g_modes[5], bp->g_modes[6], bp->g_modes[7],
+      //               bp->g_modes[8], bp->g_modes[9], bp->g_modes[10], bp->g_modes[11],
+      //               bp->g_modes[12]);
+      //     printf("  M: %d %d %d %d %d %d %d\n",
+      //               bp->m_modes[0], bp->m_modes[1], bp->m_modes[2],
+      //               bp->m_modes[3], bp->m_modes[4], bp->m_modes[5],
+      //               bp->m_modes[6]);
+      //     if (bp->x_flag) printf("  X: %f\n", bp->x_number);
+      //     if (bp->y_flag) printf("  Y: %f\n", bp->y_number);
+      //     if (bp->z_flag) printf("  Z: %f\n", bp->z_number);
+      //     if (bp->f_flag) printf("  F: %f\n", bp->f_number);
+      //     if (bp->s_flag) printf("  S: %f\n", bp->s_number);
+      //     if (bp->p_flag) printf("  P: %f\n", bp->p_number);
+      //     if (bp->q_flag) printf("  Q: %f\n", bp->q_number);
+      //     printf("========================\n");
+      // }
 
 	    CHP(parse_line(_setup.blocktext, &(EXECUTING_BLOCK(_setup)), &_setup));
+
+
+      // ★ VE 阻塞检测：这行有阻塞VE，回退文件指针，等motion空后重新读
+	    if (veNanCount > 0 && !veWaitDone) {
+	        printf("VE: %d blocking VE(s) in read, rewind and wait\n", veNanCount);
+	        if (_setup.file_pointer) {
+	            fseek(_setup.file_pointer, EXECUTING_BLOCK(_setup).offset, SEEK_SET);
+	        }
+	        veWaitTriggered = true;
+	        return INTERP_EXECUTE_FINISH;
+	    }
+      
     }
 
     else // Blank line (zero length)

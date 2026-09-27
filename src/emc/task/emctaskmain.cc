@@ -551,6 +551,11 @@ void readahead_reading(void)
 				(N.B. Watch for negative error codes.) */
 				emcStatus->task.interpState =
 				EMC_TASK_INTERP_WAITING;
+
+				// ★ VE 阻塞导致的等待：setWait 等 motion 空
+				if (veWaitTriggered) {
+					emcTaskPlanSetWait();
+				}
 			} 
 			else 
 			{
@@ -609,8 +614,12 @@ void readahead_reading(void)
 				// 译码返回正常
 				else 
 				{
-
-					// executed a good line
+					printf("VE: exec OK line=%d veLineHasVE=%d veWaitDone=%d\n",
+					       emcTaskPlanLine(), veLineHasVE, veWaitDone);
+					// ★ 只有含VE的行执行成功才清除veWaitDone
+					// 赋值行(veLineHasVE=false)不清除，保证VE行重新read时veWaitDone还是true
+					if (veLineHasVE) veWaitDone = false;
+					// executed a good line				
 				}
 
 				// throw the results away if we're supposed to
@@ -766,6 +775,17 @@ void readahead_waiting(void)
 	    emcStatus->io.status == RCS_DONE)
 	    // finished
 	{
+		// ★ VE 阻塞导致的等待：不关闭文件，恢复 READING 继续从VE行读
+	    if (veWaitTriggered) {
+	        veWaitDone = true;
+	        veWaitTriggered = false;
+	        emcTaskPlanClearWait();
+	        emcStatus->task.interpState = EMC_TASK_INTERP_READING;
+	        printf("VE: motion done, veWaitDone=true, continue reading\n");
+	        return;
+	    }
+
+		
 	    int was_open = taskplanopen;
 	    if (was_open) {
 		emcTaskPlanClose();

@@ -30,6 +30,7 @@
 #include "rtapi_math.h"
 #include <cmath>
 #include <rtapi_string.h>	// rtapi_strlcpy()
+#include "task/ve_var.h"
 
 using namespace interp_param_global;
 
@@ -2168,6 +2169,26 @@ int Interp::read_parameter_setting(
   {
       CHP(read_named_parameter_setting(line, counter, &param, parameters));
 
+      // ★ VE 变量赋值拦截：直接写 veVarTable，不进命名参数表
+      if (strncasecmp(param, "VE.", 3) == 0) {
+          CHKS((line[*counter] != '='),
+              NCE_EQUAL_SIGN_MISSING_IN_PARAMETER_SETTING);
+          *counter = (*counter + 1);
+          CHP(read_real_value(line, counter, &value, parameters));
+
+          // ★ 阻塞型 VE 赋值：等 motion 空后才执行
+          if (emcVeVarIsSync(param) && !veWaitDone && _setup.remap_level == 0) {
+              veNanCount++;
+              veLineHasVE = true;
+              printf("VE: blocking assign '%s' = %f, wait motion\n", param, value);
+              return INTERP_OK;
+          }
+
+          int ret = emcVeVarSet(param, 0, value);
+          printf("VE: assign '%s' = %f (ret=%d)\n", param, value, ret);
+          return INTERP_OK;
+      }
+
       CHKS((line[*counter] != '='),
           NCE_EQUAL_SIGN_MISSING_IN_PARAMETER_SETTING);
       *counter = (*counter + 1);
@@ -2837,10 +2858,13 @@ int Interp::read_real_value(char *line,  //!< string: line of RS274/NGC code bei
   else
     CHP(read_real_number(line, counter, double_ptr));
 
+  // ★ 有 VE 阻塞的行跳过 NaN/Inf 检查（NaN 传到 convert_straight 处理）
+  if (veNanCount == 0) {
   CHKS(std::isnan(*double_ptr),
           _("Calculation resulted in 'not a number'"));
   CHKS(std::isinf(*double_ptr),
           _("Calculation resulted in 'infinity'"));
+  }
 
   return INTERP_OK;
 }
