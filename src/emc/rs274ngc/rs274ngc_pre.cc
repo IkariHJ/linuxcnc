@@ -294,141 +294,178 @@ int Interp::_execute(const char *command)
   extern const char *call_typenames[];
   extern const char *o_ops[];
 
-  if (NULL != command) {
+  // AUTO 模式：command == NULL，行已经在上一轮 read() 里解析好了，存在 _setup.blocks 里
+  // MDI 模式：command != NULL（比如手动输入 G01 X100），当场调用 read(command) 解析成 block
+
+  // *****************************************************************************************************************************
+  // MDI 模式预处理
+  // *****************************************************************************************************************************
+  if (NULL != command)
+  {
     MDImode = 1;
+    // 解析 MDI 输入的一行文本
     status = read(command);
-    if (status != INTERP_OK) {
-	// if (status > INTERP_MIN_ERROR) 
-	//     _setup.remap_level = 0;
-	return status;
-    }
-  }
-  logDebug("execute:%s %s='%s' mdi_int=%d o_type=%s o_name=%s cl=%d rl=%d type=%s state=%s",
-	   MDImode ? "MDI" : "auto",
-	   command ? "command" : "line",
-	   command ? command : _setup.linetext,
-	    _setup.mdi_interrupt, o_ops[eblock->o_type], eblock->o_name,
-	   _setup.call_level,_setup.remap_level, 
-	   eblock->call_type < 0 ? "*unset*" : call_typenames[eblock->call_type], 
-	   call_statenames[_setup.call_state]);
-
-  // process control functions -- will skip if skipping
-  if ((eblock->o_name != 0) || _setup.mdi_interrupt)  {
-      status = convert_control_functions(eblock, &_setup);
-      CHP(status); // relinquish control if INTERP_EXECUTE_FINISH, INTERP_ERROR etc
-      
-      // let MDI code call subroutines.
-      // !!!KL not clear what happens if last execution failed while in
-      // !!!KL a subroutine
-
-      // NOTE: the last executed file will still be open, because "close"
-      // is really a lazy close.
-    
-      // we had an INTERP_OK, so no need to set up another call to finish after sync()
-      if (_setup.mdi_interrupt) {
-	  _setup.mdi_interrupt = false;
-	  MDImode = 1;
-      }
-      logDebug("!!!KL Open file is:%s:", _setup.filename);
-      logDebug("MDImode = %d", MDImode);
-      while(MDImode && _setup.call_level) // we are still in a subroutine
-      {
-          status = read(0);  // reads from current file and calls parse
-	  if (status > INTERP_MIN_ERROR)
-	      CHP(status);
-          status = execute();  // special handling for mdi errors
-          if (status != INTERP_OK) {
-	      if (status == INTERP_EXECUTE_FINISH) {
-		  _setup.mdi_interrupt = true;
-	      }
-	      CHP(status);
-          }
-      }
-      _setup.mdi_interrupt = false;
-      if (MDImode) {
-	  FINISH();
-          _setup.offset_map.clear();
-      }
-      return INTERP_OK;
-    }
-
-  // skip if skipping
-  if(_setup.skipping_o)
+    if (status != INTERP_OK)
     {
-      logDebug("skipping to: %s", _setup.skipping_o);
-      return INTERP_OK;
+      // if (status > INTERP_MIN_ERROR)
+      //     _setup.remap_level = 0;
+      return status;
     }
-
-  for (n = 0; n < _setup.parameter_occurrence; n++)
-  {  // copy parameter settings from parameter buffer into parameter table
-    _setup.parameters[_setup.parameter_numbers[n]]
-          = _setup.parameter_values[n];
   }
 
+  logDebug("execute:%s %s='%s' mdi_int=%d o_type=%s o_name=%s cl=%d rl=%d type=%s state=%s",
+           MDImode ? "MDI" : "auto",
+           command ? "command" : "line",
+           command ? command : _setup.linetext,
+           _setup.mdi_interrupt, o_ops[eblock->o_type], eblock->o_name,
+           _setup.call_level, _setup.remap_level,
+           eblock->call_type < 0 ? "*unset*" : call_typenames[eblock->call_type],
+           call_statenames[_setup.call_state]);
+
+  // *****************************************************************************************************************************
+  // AUTO 模式预处理
+  // process control functions -- will skip if skipping
+  // O-word 控制函数处理
+  // o100 call — 调用子程序
+  // o100 sub / o100 endsub — 子程序定义 / 结束
+  // m98 / m99 — 子程序调用 / 返回
+  // if / while / do 等控制流
+  // 这些行不生成运动命令，而是改变解释器的调用栈和控制流。处理完直接 return，不走后面的 `execute_block`。
+  // *****************************************************************************************************************************
+  if ((eblock->o_name != 0) || _setup.mdi_interrupt)
+  {
+    status = convert_control_functions(eblock, &_setup);
+    CHP(status); // relinquish control if INTERP_EXECUTE_FINISH, INTERP_ERROR etc
+
+    // let MDI code call subroutines.
+    // !!!KL not clear what happens if last execution failed while in
+    // !!!KL a subroutine
+
+    // NOTE: the last executed file will still be open, because "close"
+    // is really a lazy close.
+
+    // we had an INTERP_OK, so no need to set up another call to finish after sync()
+    if (_setup.mdi_interrupt)
+    {
+      _setup.mdi_interrupt = false;
+      MDImode = 1;
+    }
+    logDebug("!!!KL Open file is:%s:", _setup.filename);
+    logDebug("MDImode = %d", MDImode);
+    while (MDImode && _setup.call_level) // we are still in a subroutine
+    {
+      status = read(0); // reads from current file and calls parse
+      if (status > INTERP_MIN_ERROR)
+        CHP(status);
+      status = execute(); // special handling for mdi errors
+      if (status != INTERP_OK)
+      {
+        if (status == INTERP_EXECUTE_FINISH)
+        {
+          _setup.mdi_interrupt = true;
+        }
+        CHP(status);
+      }
+    }
+    _setup.mdi_interrupt = false;
+    if (MDImode)
+    {
+      FINISH();
+      _setup.offset_map.clear();
+    }
+    return INTERP_OK;
+  }
+
+  // *****************************************************************************************************************************
+  // skip if skipping
+  // skipping 检查
+  // 如果当前在 `if [#<cond> EQ 0]` 的 false 分支里，`skipping_o` 为真，直接跳过不执行。
+  // *****************************************************************************************************************************
+  if (_setup.skipping_o)
+  {
+    logDebug("skipping to: %s", _setup.skipping_o);
+    return INTERP_OK;
+  }
+
+  // *****************************************************************************************************************************
+  // 参数提交
+  // 把这一行里的**参数赋值**提交到参数表。比如一行里有 `#100=50 #<scale>=1.5`，解析时先存在临时缓冲区，这里统一提交。
+  // *****************************************************************************************************************************
+  // 数字参数：#100 = 50
+  for (n = 0; n < _setup.parameter_occurrence; n++)
+  { // copy parameter settings from parameter buffer into parameter table
+    _setup.parameters[_setup.parameter_numbers[n]] = _setup.parameter_values[n];
+  }
   // logDebug("_setup.named_parameter_occurrence = %d",
   //          _setup.named_parameter_occurrence);
+  // 命名参数：#<scale> = 1.5
   for (n = 0; n < _setup.named_parameter_occurrence; n++)
-  {  // copy parameter settings from parameter buffer into parameter table
+  { // copy parameter settings from parameter buffer into parameter table
 
-      logDebug("storing param:|%s|", _setup.named_parameters[n]);
-      CHP(store_named_param(&_setup, _setup.named_parameters[n],
+    logDebug("storing param:|%s|", _setup.named_parameters[n]);
+    CHP(store_named_param(&_setup, _setup.named_parameters[n],
                           _setup.named_parameter_values[n]));
   }
   _setup.named_parameter_occurrence = 0;
 
-  if (_setup.line_length != 0) {        /* line not blank */
 
-      // at this point we have a parsed block
-      // if items are to be remapped the flow is as follows:
-      //
-      // 1. push this block onto the remap stack because this might take several
-      //    interp invcocations to finish, while other blocks will be parsed and
-      //    executed by the oword subs. The top-of-stack block is the 'current
-      //    remapped block' or CONTROLLING_BLOCK.
-      //
-      // 2. execute the remap stack top level block, ticking off all items which are done.
-      //
-      // 3. when a remap operation is encountered, this will result in a call like so:
-      //   'o<replacement>call'.
-      //
-      //   this replacement call is parsed with read() into _setup.blocks[0] by the
-      //   corresponding routine (see e.g. handling of T in interp_execute.cc)
-      //   through calling into convert_remapped_code()
-      //
-      // 4. The oword call code might execute an optional prologue handler which is called
-      //    when the subroutine environment is set up (parameters set, execution of
-      //    body to begin). This is the way to set local named parameters e.g. for canned cycles.
-      //
-      // 5. The oword endsub/return code might call an epilogue handler
-      //   which finishes any work at the Python level on endsub/return, and thereafter
-      //   calls back into remap_finished().
-      //
-      // 6. The execution stops after parsing, and returns with an indication of the
-      //   execution phase. We use negative values of enum steps to distinguish them
-      //   from normal INTERP_* type codes which are all >= 0.
-      //
-      // 7. In MDI mode, we have to kick execution by replicating code from above
-      //   to get the osub call going.
-      //
-      // 8. In Auto mode, we do an initial execute(0) to get things going, thereafer
-      //   task will do it for us.
-      //
-      // 9. When a replacement sub finishes, remap_finished() continues execution of
-      //   the current remapped block until done.
-      //
-      if (eblock->remappings.size() > 0) {
-	  std::set<int>::iterator it;
-	  int next_remap = *eblock->remappings.begin();
-	  logRemap("found remap %d in '%s', level=%d filename=%s line=%d",
-		  next_remap,_setup.blocktext,_setup.call_level,_setup.filename,_setup.sequence_number);
+  // *****************************************************************************************************************************
+  // block 执行
+  // *****************************************************************************************************************************
+  if (_setup.line_length != 0)
+  { /* line not blank */
 
+    // at this point we have a parsed block
+    // if items are to be remapped the flow is as follows:
+    //
+    // 1. push this block onto the remap stack because this might take several
+    //    interp invcocations to finish, while other blocks will be parsed and
+    //    executed by the oword subs. The top-of-stack block is the 'current
+    //    remapped block' or CONTROLLING_BLOCK.
+    //
+    // 2. execute the remap stack top level block, ticking off all items which are done.
+    //
+    // 3. when a remap operation is encountered, this will result in a call like so:
+    //   'o<replacement>call'.
+    //
+    //   this replacement call is parsed with read() into _setup.blocks[0] by the
+    //   corresponding routine (see e.g. handling of T in interp_execute.cc)
+    //   through calling into convert_remapped_code()
+    //
+    // 4. The oword call code might execute an optional prologue handler which is called
+    //    when the subroutine environment is set up (parameters set, execution of
+    //    body to begin). This is the way to set local named parameters e.g. for canned cycles.
+    //
+    // 5. The oword endsub/return code might call an epilogue handler
+    //   which finishes any work at the Python level on endsub/return, and thereafter
+    //   calls back into remap_finished().
+    //
+    // 6. The execution stops after parsing, and returns with an indication of the
+    //   execution phase. We use negative values of enum steps to distinguish them
+    //   from normal INTERP_* type codes which are all >= 0.
+    //
+    // 7. In MDI mode, we have to kick execution by replicating code from above
+    //   to get the osub call going.
+    //
+    // 8. In Auto mode, we do an initial execute(0) to get things going, thereafer
+    //   task will do it for us.
+    //
+    // 9. When a replacement sub finishes, remap_finished() continues execution of
+    //   the current remapped block until done.
+    //
+    if (eblock->remappings.size() > 0)
+    {
+      std::set<int>::iterator it;
+      int next_remap = *eblock->remappings.begin();
+      logRemap("found remap %d in '%s', level=%d filename=%s line=%d",
+               next_remap, _setup.blocktext, _setup.call_level, _setup.filename, _setup.sequence_number);
 
-	  CHP(enter_remap());
-	  block_pointer cblock = &CONTROLLING_BLOCK(_setup);
-	  cblock->phase = next_remap;
-	  // execute up to the first remap including read() of its handler
-	  // this also sets cblock->executing_remap
-	  status = execute_block(cblock, &_setup);
+      CHP(enter_remap());
+      block_pointer cblock = &CONTROLLING_BLOCK(_setup);
+      cblock->phase = next_remap;
+      // execute up to the first remap including read() of its handler
+      // this also sets cblock->executing_remap
+      status = execute_block(cblock, &_setup);
 #if 0
 	  // this is too naive a test and needs improving (aka: not segfault). 
 	  // It needs to kick in only for  new codes, not remapped ones, for which
@@ -444,85 +481,103 @@ int Interp::_execute(const char *command)
 	      }
 	  }
 #endif
-	  // All items up to the first remap item have been executed.
-	  // The remap item procedure call has been parsed into _setup.blocks[0],
-	  // the EXECUTING_BLOCK.
-	  // after parsing a handler, execute_block() either fails to toplevel or
-	  // returns the negative value of phase (to distinguish them from INTERP_* codes which are all >= 0)
+      // All items up to the first remap item have been executed.
+      // The remap item procedure call has been parsed into _setup.blocks[0],
+      // the EXECUTING_BLOCK.
+      // after parsing a handler, execute_block() either fails to toplevel or
+      // returns the negative value of phase (to distinguish them from INTERP_* codes which are all >= 0)
 
-	  if (status < 0) {
+      if (status < 0)
+      {
 
-	      // the remap phase indicator was returned.
-	      // sanity:
-	      if (cblock->remappings.find(- status) == cblock->remappings.end()) {
-		  ERS("BUG: execute_block: got %d - not in remappings() !! (next_remap=%d)",- status,next_remap);
-	      }
-	      logRemap("initial phase %d",-status);
-	      if (MDImode) {
-		  // need to trigger execution of parsed _setup.block1 here
-		  // replicate MDI oword execution code here
-		  if ((eblock->o_name != 0) ||
-		      (_setup.mdi_interrupt)) { 
+        // the remap phase indicator was returned.
+        // sanity:
+        if (cblock->remappings.find(-status) == cblock->remappings.end())
+        {
+          ERS("BUG: execute_block: got %d - not in remappings() !! (next_remap=%d)", -status, next_remap);
+        }
+        logRemap("initial phase %d", -status);
+        if (MDImode)
+        {
+          // need to trigger execution of parsed _setup.block1 here
+          // replicate MDI oword execution code here
+          if ((eblock->o_name != 0) ||
+              (_setup.mdi_interrupt))
+          {
 
-		      status = convert_control_functions(eblock, &_setup);
-		      CHP(status);
-		      if (_setup.mdi_interrupt) {
-			  _setup.mdi_interrupt = false;
-			  MDImode = 1;
-		      }
-		      status = INTERP_OK;
-		      while(MDImode && _setup.call_level) { // we are still in a subroutine
-			  CHP(read(0));  // reads from current file and calls parse
-			  status = execute();  // special handling for mdi errors
-			  if (status == INTERP_EXECUTE_FINISH) 
-			      _setup.mdi_interrupt = true;
-			  CHP(status);
-		      }
-		      _setup.mdi_interrupt = false;
-		      // at this point the MDI execution of a remapped block is complete.
-		      logRemap("MDI remap execution complete status=%s\n",interp_status(status));
-		      write_g_codes(eblock, &_setup);
-		      write_m_codes(eblock, &_setup);
-		      write_settings(&_setup);
-		      return INTERP_OK;
-		  }
-	      } else {
-		  // this should get the osub going
-		  status = execute(0);
-		  CHP(status);
-		  // when this is done, blocks[0] will be executed as per standard case
-		  // on endsub/return and g_codes/m_codes/settings recorded there.
-	      }
-	      if ((status != INTERP_OK) &&
-		  (status != INTERP_EXECUTE_FINISH) && (status != INTERP_EXIT))
-		  ERP(status);
-	  } else {
-	      CHP(status);
-	  }
-      } else {
-	  // standard case: unremapped block execution
-	  status = execute_block(eblock, &_setup);
-
-	  write_g_codes(eblock, &_setup);
-	  write_m_codes(eblock, &_setup);
-	  write_settings(&_setup);
-
-	  if ((status == INTERP_EXIT) &&
-	      (_setup.remap_level > 0) &&
-	      (_setup.call_level > 0)) {
-	      // an M2 was encountered while executing a handler.
-	      logRemap("standard case status=%s remap_level=%d call_level=%d blocktext='%s' MDImode=%d",
-		      interp_status(status),_setup.remap_level,_setup.call_level, _setup.blocktext,MDImode);
-	      logRemap("_setup.filename = %s, fn[0]=%s, fn[1]=%s",
-		      _setup.filename,
-		      _setup.sub_context[0].filename,
-		      _setup.sub_context[1].filename);
-	  }
+            status = convert_control_functions(eblock, &_setup);
+            CHP(status);
+            if (_setup.mdi_interrupt)
+            {
+              _setup.mdi_interrupt = false;
+              MDImode = 1;
+            }
+            status = INTERP_OK;
+            while (MDImode && _setup.call_level)
+            {                     // we are still in a subroutine
+              CHP(read(0));       // reads from current file and calls parse
+              status = execute(); // special handling for mdi errors
+              if (status == INTERP_EXECUTE_FINISH)
+                _setup.mdi_interrupt = true;
+              CHP(status);
+            }
+            _setup.mdi_interrupt = false;
+            // at this point the MDI execution of a remapped block is complete.
+            logRemap("MDI remap execution complete status=%s\n", interp_status(status));
+            write_g_codes(eblock, &_setup);
+            write_m_codes(eblock, &_setup);
+            write_settings(&_setup);
+            return INTERP_OK;
+          }
+        }
+        else
+        {
+          // this should get the osub going
+          status = execute(0);
+          CHP(status);
+          // when this is done, blocks[0] will be executed as per standard case
+          // on endsub/return and g_codes/m_codes/settings recorded there.
+        }
+        if ((status != INTERP_OK) &&
+            (status != INTERP_EXECUTE_FINISH) && (status != INTERP_EXIT))
+          ERP(status);
       }
+      else
+      {
+        CHP(status);
+      }
+    }
+    // 标准执行
+    else
+    {
+      // standard case: unremapped block execution
+      // ← 核心：生成 canon 命令
+      status = execute_block(eblock, &_setup);
+      // 记录 G 代码模态状态
+      write_g_codes(eblock, &_setup);
+      // 记录 M 代码模态状态
+      write_m_codes(eblock, &_setup);
+      // 记录进给、转速等设置
+      write_settings(&_setup);
+
+      if ((status == INTERP_EXIT) &&
+          (_setup.remap_level > 0) &&
+          (_setup.call_level > 0))
+      {
+        // an M2 was encountered while executing a handler.
+        logRemap("standard case status=%s remap_level=%d call_level=%d blocktext='%s' MDImode=%d",
+                 interp_status(status), _setup.remap_level, _setup.call_level, _setup.blocktext, MDImode);
+        logRemap("_setup.filename = %s, fn[0]=%s, fn[1]=%s",
+                 _setup.filename,
+                 _setup.sub_context[0].filename,
+                 _setup.sub_context[1].filename);
+      }
+    }
     if ((status != INTERP_OK) &&
         (status != INTERP_EXECUTE_FINISH) && (status != INTERP_EXIT))
       ERP(status);
-  } else                        /* blank line is OK */
+  }
+  else /* blank line is OK */
     status = INTERP_OK;
   return status;
 }
@@ -1630,8 +1685,33 @@ int Interp::_read(const char *command)  //!< may be NULL or a string to read
 
   if ((read_status == INTERP_EXECUTE_FINISH)
       || (read_status == INTERP_OK)) {
-    if (_setup.line_length != 0) {
-	CHP(parse_line(_setup.blocktext, &(EXECUTING_BLOCK(_setup)), &_setup));
+    if (_setup.line_length != 0) 
+    {  
+      // ★ 调试打印：解析出的 block 内容
+      {
+          block_pointer bp = &EXECUTING_BLOCK(_setup);
+          printf("=== PARSE line=%d text='%s' ===\n",
+                    bp->line_number, _setup.blocktext);
+          printf("  G: %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
+                    bp->g_modes[0], bp->g_modes[1], bp->g_modes[2], bp->g_modes[3],
+                    bp->g_modes[4], bp->g_modes[5], bp->g_modes[6], bp->g_modes[7],
+                    bp->g_modes[8], bp->g_modes[9], bp->g_modes[10], bp->g_modes[11],
+                    bp->g_modes[12]);
+          printf("  M: %d %d %d %d %d %d %d\n",
+                    bp->m_modes[0], bp->m_modes[1], bp->m_modes[2],
+                    bp->m_modes[3], bp->m_modes[4], bp->m_modes[5],
+                    bp->m_modes[6]);
+          if (bp->x_flag) printf("  X: %f\n", bp->x_number);
+          if (bp->y_flag) printf("  Y: %f\n", bp->y_number);
+          if (bp->z_flag) printf("  Z: %f\n", bp->z_number);
+          if (bp->f_flag) printf("  F: %f\n", bp->f_number);
+          if (bp->s_flag) printf("  S: %f\n", bp->s_number);
+          if (bp->p_flag) printf("  P: %f\n", bp->p_number);
+          if (bp->q_flag) printf("  Q: %f\n", bp->q_number);
+          printf("========================\n");
+      }
+
+	    CHP(parse_line(_setup.blocktext, &(EXECUTING_BLOCK(_setup)), &_setup));
     }
 
     else // Blank line (zero length)

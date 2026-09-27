@@ -1271,6 +1271,7 @@ static int emcTaskPlan(void)
 							}		// switch (type) in ON, AUTO, READING
 
 							// handle interp readahead logic
+							// 读NGC文件
 							readahead_reading();
 								
 							break;		// EMC_TASK_INTERP_READING

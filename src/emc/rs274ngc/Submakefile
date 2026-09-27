@@ -33,7 +33,8 @@ LIBRS274SRCS := $(addprefix emc/rs274ngc/, \
 	pyarrays.cc \
 	interpmodule.cc \
 	rs274ngc_pre.cc \
-	interp_inspection.cc)
+	interp_inspection.cc\
+    ../task/ve_var.cc)
 USERSRCS += $(LIBRS274SRCS)
 
 $(call TOOBJSDEPS, $(LIBRS274SRCS)) : EXTRAFLAGS+=-fPIC $(BOOST_DEBUG_FLAGS)
