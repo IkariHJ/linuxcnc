@@ -60,12 +60,17 @@ void emcVeVarShutdown(void);
 
 
 // ===== VE 阻塞执行状态 =====
-extern int  veNanCount;       // 当前行阻塞 VE 数量（每次 read 开头清零）
-extern bool veWaitDone;       // true=已等motion空, 阻塞VE直接读真实值
-extern bool veWaitTriggered;  // true=这次INTERP_EXECUTE_FINISH是VE导致的
-extern bool veLineHasVE;  // 当前行是否引用了VE变量（赋值行=false, VE运动行=true）
-extern long veReadOffset;  // 当前 read 行的文件位置（VE回退用）
-extern long veWaitOffset;  // VE等待时保存的文件位置，用于恢复
+// VE 阻塞执行状态
+enum VE_WAIT_STATE {
+    VE_WAIT_NONE = 0,     // 正常，无等待
+    VE_WAIT_PENDING,      // 已触发rewind，正在等motion空
+    VE_WAIT_DONE          // motion已空，VE直接读真实值
+};
+extern VE_WAIT_STATE veWaitState;
+extern bool veLineHasBlockingVE;  // 替代 veNanCount
+extern bool veLineHasVE;
+extern long veWaitOffset;
+
 
 
 // 判断 VE 是否阻塞型（sync=1）

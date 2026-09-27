@@ -177,7 +177,7 @@ int Interp::read_named_parameter(
         veLineHasVE = true;  // ★ 标记这行引用了VE
         if (emcVeVarIsSync(paramNameBuf)) {
             // 阻塞型 VE
-            if (_setup.remap_level > 0 || veWaitDone) {
+            if (_setup.remap_level > 0 || veWaitState == VE_WAIT_DONE) {
                 // remap里或已等过motion空 → 直接读真实值
                 bool ok;
                 double v = emcVeVarGet(paramNameBuf, 0, &ok);
@@ -186,8 +186,8 @@ int Interp::read_named_parameter(
                 return INTERP_OK;
             }
             // 返回 NaN 标记，等重新执行
-            veNanCount++;
-            printf("VE: blocking '%s' -> NaN (count=%d)\n", paramNameBuf, veNanCount);
+            veLineHasBlockingVE = true;
+            printf("VE: blocking '%s' -> NaN\n", paramNameBuf);
             *double_ptr = std::nan("ve_wait");
             return INTERP_OK;
         } else {

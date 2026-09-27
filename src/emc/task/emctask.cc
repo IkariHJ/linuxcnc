@@ -261,6 +261,13 @@ int emcTaskAbort()
     }
 
 
+    // ★ VE 阻塞状态复位
+    veWaitState = VE_WAIT_NONE;
+    veLineHasBlockingVE = false;
+    veLineHasVE = false;
+    veWaitOffset = -1;
+
+
     stepping = 0;
     steppingWait = 0;
 
@@ -455,11 +462,10 @@ static int waitFlag = 0;
 int emcTaskPlanInit()
 {
     // ★ VE 状态复位
-    veWaitDone = false;
-    veWaitTriggered = false;
-    veWaitOffset = -1;
-    veNanCount = 0;
+    veWaitState = VE_WAIT_NONE;
+    veLineHasBlockingVE = false;
     veLineHasVE = false;
+    veWaitOffset = -1;
 
 
     if(!pinterp) {
@@ -573,12 +579,11 @@ void emcTaskPlanExit()
 
 int emcTaskPlanOpen(const char *file)
 {
-    // ★ 每次运行程序时复位 VE 阻塞状态
-    veWaitDone = false;
-    veWaitTriggered = false;
-    veWaitOffset = -1;
-    veNanCount = 0;
+    // ★ VE 阻塞状态复位
+    veWaitState = VE_WAIT_NONE;
+    veLineHasBlockingVE = false;
     veLineHasVE = false;
+    veWaitOffset = -1;
 
 
     if (emcStatus != 0) {

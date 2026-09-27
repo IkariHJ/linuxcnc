@@ -264,12 +264,11 @@ void emcVeVarShutdown(void)
 // ============================================================
 // VE 阻塞执行状态
 // ============================================================
-int  veNanCount = 0;
-bool veWaitDone = false;
-bool veWaitTriggered = false;
+VE_WAIT_STATE veWaitState = VE_WAIT_NONE;
+bool veLineHasBlockingVE = false;
 bool veLineHasVE = false;
-long veReadOffset = 0;
 long veWaitOffset = -1;
+
 
 
 bool emcVeVarIsSync(const char *varName)

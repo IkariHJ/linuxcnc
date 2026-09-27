@@ -1562,10 +1562,11 @@ zero, this parses the line into the _setup.block1.
 
 int Interp::_read(const char *command)  //!< may be NULL or a string to read
 {
-  veNanCount = 0;  // ★ 每行开始时清零
-  veLineHasVE = false;  // ★ 每行开始时清零
+  veLineHasBlockingVE = false;
+  veLineHasVE = false;  
+
   // ★ VE等待完成后，恢复文件指针到VE行位置
-  if (veWaitDone && veWaitOffset >= 0) {
+  if (veWaitState == VE_WAIT_DONE && veWaitOffset >= 0) {
       if (_setup.file_pointer) {
           fseek(_setup.file_pointer, veWaitOffset, SEEK_SET);
           printf("VE: restore fp to %ld\n", veWaitOffset);
@@ -1685,7 +1686,6 @@ int Interp::_read(const char *command)  //!< may be NULL or a string to read
   if(_setup.file_pointer)
   {
       EXECUTING_BLOCK(_setup).offset = ftell(_setup.file_pointer);
-      veReadOffset = EXECUTING_BLOCK(_setup).offset;  // ★ 同步记录
       printf("VE: read offset=%ld text='%.40s'\n",
              (long)EXECUTING_BLOCK(_setup).offset, _setup.linetext);
   }
@@ -1737,15 +1737,15 @@ int Interp::_read(const char *command)  //!< may be NULL or a string to read
 
 
       // ★ VE 阻塞检测：这行有阻塞VE，回退文件指针，等motion空后重新读
-	    if (veNanCount > 0 && !veWaitDone) {
-	        printf("VE: %d blocking VE(s) in read, rewind and wait\n", veNanCount);
+	    if (veLineHasBlockingVE && veWaitState != VE_WAIT_DONE) {
+	        printf("VE: exist blocking VE(s) in read, rewind and wait\n");
 	        if (_setup.file_pointer) {
 	            fseek(_setup.file_pointer, EXECUTING_BLOCK(_setup).offset, SEEK_SET);
 	        }
-	        veWaitTriggered = true;
+	        veWaitState = VE_WAIT_PENDING;
 	        return INTERP_EXECUTE_FINISH;
 	    }
-      
+
     }
 
     else // Blank line (zero length)
