@@ -138,6 +138,7 @@ struct PM_CARTESIAN;
 
 // M代码相关
 #define EMC_WRITE_VE_VAR_TYPE                        ((NMLTYPE) 242)
+#define EMC_VE_ASSIGN_TYPE                           ((NMLTYPE) 244)
 
 
 #define EMC_TRAJ_STAT_TYPE                           ((NMLTYPE) 299)

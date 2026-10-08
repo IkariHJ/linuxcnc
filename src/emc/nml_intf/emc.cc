@@ -773,6 +773,9 @@ const char *emc_symbol_lookup(uint32_t type)
     case EMC_WRITE_VE_VAR_TYPE:
     return "EMC_WRITE_VE_VAR";
 
+    case EMC_VE_ASSIGN_TYPE:
+    return "EMC_VE_ASSIGN";
+
 
     // 第四内存
     case EMC_CUSTOM_STAT_TYPE:
@@ -3101,4 +3104,14 @@ void EMC_WRITE_VE_VAR_MSG::update(CMS * cms)
   cms->update(arrIndex);
   cms->update(value);
 }
+
+
+void EMC_VE_ASSIGN_MSG::update(CMS *cms)
+{
+    EMC_TRAJ_CMD_MSG::update(cms);
+    cms->update(varName, 64);
+    cms->update(arrIndex);
+    cms->update(value);
+}
+
 

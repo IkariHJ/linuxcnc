@@ -462,6 +462,7 @@ void ENABLE_SPEED_OVERRIDE(int spindle) {}
 void MIST_OFF() {}
 void FLOOD_OFF() {}
 void MIST_ON() {}
+void VE_ASSIGN(const char *varName, int arrIndex, double value) {}
 void FLOOD_ON() {}
 void CLEAR_AUX_OUTPUT_BIT(int bit) {}
 void SET_AUX_OUTPUT_BIT(int bit) {}

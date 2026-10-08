@@ -31,6 +31,7 @@
 #include <cmath>
 #include <rtapi_string.h>	// rtapi_strlcpy()
 #include "task/ve_var.h"
+#include "interp_queue.hh"
 
 using namespace interp_param_global;
 
@@ -2169,23 +2170,14 @@ int Interp::read_parameter_setting(
   {
       CHP(read_named_parameter_setting(line, counter, &param, parameters));
 
-      // ★ VE 变量赋值拦截：直接写 veVarTable，不进命名参数表
+      // ★ VE 变量赋值：入队命令，不直接赋值
       if (strncasecmp(param, "VE.", 3) == 0) {
           CHKS((line[*counter] != '='),
               NCE_EQUAL_SIGN_MISSING_IN_PARAMETER_SETTING);
           *counter = (*counter + 1);
           CHP(read_real_value(line, counter, &value, parameters));
-
-          // ★ 阻塞型 VE 赋值：等 motion 空后才执行
-          if (emcVeVarIsSync(param) && veWaitState != VE_WAIT_DONE && _setup.remap_level == 0) {
-              veLineHasBlockingVE = true;
-              veLineHasVE = true;
-              printf("VE: blocking assign '%s' = %f, wait motion\n", param, value);
-              return INTERP_OK;
-          }
-
-          int ret = emcVeVarSet(param, 0, value);
-          printf("VE: assign '%s' = %f (ret=%d)\n", param, value, ret);
+          enqueue_VE_ASSIGN(param, 0, value);
+          printf("VE: enqueue assign '%s' = %f\n", param, value);
           return INTERP_OK;
       }
 

@@ -664,6 +664,9 @@ extern void MIST_OFF();
 extern void MIST_ON();
 /* Turn mist coolant on. */
 
+extern void VE_ASSIGN(const char *varName, int arrIndex, double value);
+
+
 extern void PALLET_SHUTTLE();
 
 /* If the machining center has a pallet shuttle mechanism (a mechanism

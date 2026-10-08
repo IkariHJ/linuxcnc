@@ -2433,6 +2433,17 @@ void MIST_ON()
     interp_list.append(mist_on_msg);
 }
 
+void VE_ASSIGN(const char *varName, int arrIndex, double value)
+{
+    flush_segments();
+    EMC_VE_ASSIGN_MSG msg;
+    strncpy(msg.varName, varName, sizeof(msg.varName) - 1);
+    msg.varName[sizeof(msg.varName) - 1] = 0;
+    msg.arrIndex = arrIndex;
+    msg.value = value;
+    interp_list.append(msg);
+}
+
 void PALLET_SHUTTLE()
 {
     /*! \todo FIXME-- unimplemented */

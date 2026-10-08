@@ -86,6 +86,7 @@ struct wait_orient_spindle_complete {
     double timeout;
 };
 
+
 struct queued_canon {
     queued_canon_type type;
     union {
@@ -140,6 +141,7 @@ void enqueue_M_USER_COMMAND(int index,double p_number,double q_number);
 void enqueue_START_CHANGE(void);
 void enqueue_ORIENT_SPINDLE(int spindle, double orientation, int mode);
 void enqueue_WAIT_ORIENT_SPINDLE_COMPLETE(int spindle, double timeout);
+void enqueue_VE_ASSIGN(const char *varName, int arrIndex, double value);
 void dequeue_canons(setup_pointer settings);
 void set_endpoint(double x, double y);
 void set_endpoint_zx(double z, double x);

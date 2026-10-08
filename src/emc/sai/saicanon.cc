@@ -657,6 +657,11 @@ void MIST_ON()
   _sai._mist = 1;
 }
 
+void VE_ASSIGN(const char *varName, int arrIndex, double value)
+{
+    // sai 模式下空实现，VE赋值不生效
+}
+
 void PALLET_SHUTTLE()
 {PRINT("PALLET_SHUTTLE()\n");}
 

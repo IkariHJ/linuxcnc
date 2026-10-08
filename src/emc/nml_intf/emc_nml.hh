@@ -2303,6 +2303,16 @@ class EMC_WRITE_VE_VAR_MSG : public EMC_CMD_MSG {
 };
 
 
+// EMC_VE_ASSIGN - VE赋值命令（task内部走interp_list，等motion空后执行）
+class EMC_VE_ASSIGN_MSG : public EMC_TRAJ_CMD_MSG {
+  public:
+    EMC_VE_ASSIGN_MSG() : EMC_TRAJ_CMD_MSG(EMC_VE_ASSIGN_TYPE, sizeof(EMC_VE_ASSIGN_MSG)) {}
+    void update(CMS *cms);
+    char   varName[64];
+    int    arrIndex;
+    double value;
+};
+
 
 /*
    Declarations of EMC status class implementations, for major subsystems.

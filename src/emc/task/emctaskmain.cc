@@ -767,6 +767,28 @@ static void mdi_execute_hook(void)
 
 void readahead_waiting(void)
 {
+	// ★ VE 阻塞等待：只等 motion 空 + interp_list 空，不等 io
+	if (veWaitState == VE_WAIT_PENDING) 
+	{
+		if (emcStatus->motion.traj.queue != 0) return;
+		
+		// motion空了：还有命令要执行，强制execState=DONE让emcTaskExecute取命令
+		if (interp_list.len() != 0 || emcTaskCommand != 0) {
+			emcStatus->task.execState = EMC_TASK_EXEC_DONE;
+			return;
+		}
+		
+		// 所有命令都执行完了，恢复READING
+		veWaitState = VE_WAIT_DONE;
+		emcTaskPlanClearWait();
+		emcStatus->task.interpState = EMC_TASK_INTERP_READING;
+		printf("VE: motion+queue done, veWaitState=DONE, continue reading\n");
+		return;
+	}
+
+
+
+
 	// now handle call logic
 	// check for subsystems done
 	if (interp_list.len() == 0 &&
@@ -775,15 +797,6 @@ void readahead_waiting(void)
 	    emcStatus->io.status == RCS_DONE)
 	    // finished
 	{
-		// ★ VE 阻塞导致的等待：不关闭文件，恢复 READING 继续从VE行读
-		if (veWaitState == VE_WAIT_PENDING) {
-			veWaitState = VE_WAIT_DONE;
-			emcTaskPlanClearWait();
-			emcStatus->task.interpState = EMC_TASK_INTERP_READING;
-			printf("VE: motion done, veWaitState=DONE, continue reading\n");
-			return;
-		}
-
 	    int was_open = taskplanopen;
 	    if (was_open) {
 		emcTaskPlanClose();
@@ -798,9 +811,12 @@ void readahead_waiting(void)
 		emcStatus->task.interpState = EMC_TASK_INTERP_IDLE;
 	    }
 	    emcStatus->task.readLine = 0;
-	} else {
+	} 
+	else 
+	{
 	    // still executing
-        }
+    }
+
 }
 
 // 填充emcCommand
@@ -1754,8 +1770,21 @@ static int emcTaskCheckPreconditions(NMLmsg * cmd)
 	return EMC_TASK_EXEC_WAITING_FOR_M_CODES_AND_MOTION;
 	break;
 
+	case EMC_VE_ASSIGN_TYPE:
+	{
+		EMC_VE_ASSIGN_MSG *msg = (EMC_VE_ASSIGN_MSG *)cmd;
+		if (emcVeVarIsSync(msg->varName)) {
+			// 阻塞VE：等前面运动完成
+			return EMC_TASK_EXEC_WAITING_FOR_MOTION;
+		} else {
+			// 非阻塞VE：不等运动，立即执行
+			return EMC_TASK_EXEC_DONE;
+		}
 
+		break;
+	}
     default:
+	
 	// unrecognized command
 	if (emc_debug & EMC_DEBUG_TASK_ISSUE) {
 	    rcs_print_error("preconditions: unrecognized command %d:%s\n",
@@ -2590,6 +2619,17 @@ static int emcTaskIssueCommand(NMLmsg * cmd)
 				rcs_print("VE: write var=%s idx=%d val=%f\n",
 					msg->varName, msg->arrIndex, msg->value);
 			}
+			retval = 0;
+			break;
+		}
+
+
+		case EMC_VE_ASSIGN_TYPE:
+		{
+			EMC_VE_ASSIGN_MSG *msg = (EMC_VE_ASSIGN_MSG *)cmd;
+			int ret = emcVeVarSet(msg->varName, msg->arrIndex, msg->value);
+			printf("VE: execute assign '%s' = %f (ret=%d)\n",
+				msg->varName, msg->value, ret);
 			retval = 0;
 			break;
 		}

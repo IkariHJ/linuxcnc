@@ -18,6 +18,7 @@
 #include "interp_queue.hh"
 #include "interp_internal.hh"
 #include "rs274ngc_interp.hh"
+#include "emc_nml.hh"
 
 static int debug_qc = 0;
 
@@ -386,6 +387,10 @@ void enqueue_M_USER_COMMAND (int index, double p_number, double q_number) {
     qc().push_back(q);
 }
 
+void enqueue_VE_ASSIGN(const char *varName, int arrIndex, double value) {
+    VE_ASSIGN(varName, arrIndex, value);
+}
+
 void enqueue_START_CHANGE (void) {
     queued_canon q;
     q.type = QSTART_CHANGE;
@@ -558,6 +563,7 @@ void dequeue_canons(setup_pointer settings) {
             			   q.data.orient_spindle.orientation,
             			   q.data.orient_spindle.mode);
             break;
+
 	case QWAIT_ORIENT_SPINDLE_COMPLETE:
             if(debug_qc) printf("issuing wait orient spindle complete\n");
             WAIT_SPINDLE_ORIENT_COMPLETE(q.data.wait_orient_spindle_complete.spindle,
