@@ -38,6 +38,7 @@ struct VE_VAR_ENTRY {
     int  byteSize;
     int  ready;                 // 同步模式：PLC写后置1, task读清0
     double *data;
+    int  offset;    // 在共享内存 veData 中的字节偏移（加载时计算）
 };
 
 // ===== 函数 API =====
@@ -75,6 +76,9 @@ extern long veWaitOffset;
 
 // 判断 VE 是否阻塞型（sync=1）
 bool emcVeVarIsSync(const char *varName);
+
+// 同步 VE 变量到 emcCustomStatus 快照（task 主循环每个周期调用）
+void emcVeVarSyncToStatus(void *customStat);
 
 
 #endif // VE_VAR_H

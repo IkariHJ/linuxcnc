@@ -1784,7 +1784,7 @@ static int emcTaskCheckPreconditions(NMLmsg * cmd)
 		break;
 	}
     default:
-	
+
 	// unrecognized command
 	if (emc_debug & EMC_DEBUG_TASK_ISSUE) {
 	    rcs_print_error("preconditions: unrecognized command %d:%s\n",
@@ -4627,6 +4627,8 @@ int main(int argc, char *argv[])
 		// 共享内存状态写入
 		emcStatusBuffer->write(emcStatus);
 
+		// ★ 同步 VE 变量到快照
+		emcVeVarSyncToStatus(emcCustomStatus);
 
 		// 第四内存、共享内存taskpc状态写入
 		if (emcCustomStatusBuffer && emcCustomStatus) 

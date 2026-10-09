@@ -1,4 +1,5 @@
 #include "ve_var.h"
+#include "emc_nml.hh"
 
 #include <stdio.h>
 #include <string.h>
@@ -83,6 +84,7 @@ int emcVeVarLoadFromIni(const char *iniPath)
     memset(&e, 0, sizeof(e));
 
     int loaded = 0;
+    int veDataOffset = 0;
     std::map<int, std::string> indexUsed;
 
     #define VE_COMMIT() do { \
@@ -103,6 +105,8 @@ int emcVeVarLoadFromIni(const char *iniPath)
                     indexUsed[e.index] = e.name; \
                 } \
             } \
+            e.offset = veDataOffset; \
+            veDataOffset += e.byteSize; \
             e.data = (double *)calloc(sz, sizeof(double)); \
             if (e.data) { \
                 std::string key(e.name); \
@@ -284,3 +288,50 @@ bool emcVeVarIsSync(const char *varName)
     return it->second.sync != 0;
 }
 
+
+
+// ============================================================
+// 同步 VE 变量到 emcCustomStatus 快照
+// ============================================================
+void emcVeVarSyncToStatus(void *customStat)
+{
+    if (!customStat) return;
+    EMC_CUSTOM_STAT *stat = (EMC_CUSTOM_STAT *)customStat;
+
+    int idx = 0;
+    for (auto &kv : veVarTable) {
+        if (idx >= MAX_VE_COUNT) break;
+        VE_VAR_ENTRY &e = kv.second;
+
+        // 写元数据
+        strncpy(stat->veVarMeta[idx].name, e.name, 63);
+        stat->veVarMeta[idx].name[63] = '\0';
+        stat->veVarMeta[idx].offset = e.offset;
+        stat->veVarMeta[idx].type = e.type;
+        stat->veVarMeta[idx].arraySize = e.arraySize;
+        stat->veVarMeta[idx].byteSize = e.byteSize;
+        stat->veVarMeta[idx].ready = e.ready;
+
+        // 写值（按类型转字节）
+        int sz = (e.arraySize > 0) ? e.arraySize : 1;
+        for (int i = 0; i < sz; i++) {
+            double val = e.data[i];
+            switch (e.type) {
+            case VE_TYPE_BOOL:
+                stat->veData[e.offset + i] = (unsigned char)(val != 0 ? 1 : 0);
+                break;
+            case VE_TYPE_INT: {
+                int iv = (int)val;
+                memcpy(&stat->veData[e.offset + i * 4], &iv, 4);
+                break;
+            }
+            case VE_TYPE_DOUBLE:
+            default:
+                memcpy(&stat->veData[e.offset + i * 8], &val, 8);
+                break;
+            }
+        }
+        idx++;
+    }
+    stat->veVarCount = idx;
+}

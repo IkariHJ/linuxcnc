@@ -3088,6 +3088,19 @@ void EMC_CUSTOM_STAT::update(CMS *cms)
         cms->update(mcodeCtx.activeMCodeList[i].mNumber);
         cms->update(mcodeCtx.activeMCodeList[i].value);
     }
+    
+
+    // ★ VE 变量快照序列化
+    cms->update(veVarCount);
+    for (int i = 0; i < MAX_VE_COUNT; i++) {
+        cms->update(veVarMeta[i].name, 64);
+        cms->update(veVarMeta[i].offset);
+        cms->update(veVarMeta[i].type);
+        cms->update(veVarMeta[i].arraySize);
+        cms->update(veVarMeta[i].byteSize);
+        cms->update(veVarMeta[i].ready);
+    }
+    cms->update(veData, MAX_VE_BYTES);
 
 }
 

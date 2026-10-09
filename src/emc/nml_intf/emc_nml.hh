@@ -52,6 +52,22 @@ typedef struct {
 } EMC_TASK_MCODE_CTX;
 
 
+// ★ VE 变量快照（task → PLC 只读）
+//每个变量（16 元素 double 数组）：
+//- 16 × 8 字节 = 128 字节
+//200 个变量值存储区
+//- 200 × 128 = 25,600 字节
+#define MAX_VE_COUNT 200
+#define MAX_VE_BYTES 25600    // 200 × 128，精确值
+
+struct VE_VAR_META {
+    char name[64];     // 变量名（不含 VE. 前缀）
+    int  offset;       // 在 veData 中的字节偏移
+    int  type;         // VE_TYPE_BOOL/INT/DOUBLE
+    int  arraySize;    // 数组大小，标量=0
+    int  byteSize;     // 总字节数
+    int  ready;        // 同步模式就绪标志
+};
 
 // ------------------
 // CLASS DECLARATIONS
@@ -2271,6 +2287,11 @@ class EMC_CUSTOM_STAT : public EMC_CUSTOM_STAT_MSG {
     // ★ 新增：M代码列表（给PLC读取）
     EMC_MCODE_ENTRY mcodeListWithPLC[EMC_MAX_MCODE_LIST];
     EMC_TASK_MCODE_CTX mcodeCtx;          // 当前行激活的M代码上下文
+
+    // ★ 新增：VE变量（给PLC读取）
+    int veVarCount;                          // 变量总数
+    VE_VAR_META veVarMeta[MAX_VE_COUNT];     // 变量元数据表
+    unsigned char veData[MAX_VE_BYTES];      // 值存储区
 
 };
 
